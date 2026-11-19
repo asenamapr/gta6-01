@@ -8,64 +8,70 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: #0e2a33;
     font-family: "Trebuchet MS", "Segoe UI", Verdana, sans-serif; }
   #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-  .hud { position: fixed; z-index: 5; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.85);
-    user-select: none; pointer-events: none; }
+  .hud { position: fixed; z-index: 5; color: #fff; user-select: none; pointer-events: none;
+    text-shadow: 0 2px 4px rgba(0,0,0,.85); }
   #topleft { top: 14px; left: 14px; }
-  #healthwrap { width: 240px; height: 18px; background: rgba(0,0,0,.55); border: 2px solid rgba(255,255,255,.75);
-    border-radius: 9px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
+  #healthwrap { width: 240px; height: 18px; overflow: hidden; border-radius: 9px;
+    background: rgba(0,0,0,.55); border: 2px solid rgba(255,255,255,.75);
+    box-shadow: 0 2px 8px rgba(0,0,0,.5); }
   #healthbar { height: 100%; width: 100%; background: linear-gradient(90deg,#2dd4a7,#7ef0c8); }
-  #cashline { margin-top: 6px; font-size: 24px; font-weight: bold; letter-spacing: .5px; color:#ffe9a8;
-    text-shadow: 0 2px 4px rgba(0,0,0,.9); }
-  #stars { margin-top: 0; font-size: 32px; letter-spacing: 4px; color: #ffd34d;
+  #cashline { margin-top: 6px; font-size: 24px; font-weight: bold; letter-spacing: .5px;
+    color: #ffe9a8; text-shadow: 0 2px 4px rgba(0,0,0,.9); }
+  #stars { font-size: 32px; letter-spacing: 4px; color: #ffd34d;
     text-shadow: 0 0 10px rgba(255,211,77,.55), 0 2px 4px rgba(0,0,0,.9); }
   #stars .off { color: rgba(255,255,255,.4); text-shadow: 0 2px 4px rgba(0,0,0,.9); }
-  #mission { margin-top: 10px; width: 320px; background: rgba(6,32,42,.82); border-left: 5px solid #ff7a5c;
-    padding: 10px 12px; border-radius: 0 10px 10px 0; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
-  #mission h3 { margin: 0 0 3px; font-size: 16px; color: #ff9d86; letter-spacing: 1px; text-transform: uppercase; }
+  #mission { margin-top: 10px; width: 330px; padding: 10px 12px; border-radius: 0 10px 10px 0;
+    background: rgba(6,32,42,.82); border-left: 5px solid #ff7a5c; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
+  #mission h3 { margin: 0 0 3px; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; color: #ff9d86; }
   #mission p { margin: 0; font-size: 15px; line-height: 1.4; }
   #mission .obj { color: #d8f6f2; }
-  #mapwrap { top: 14px; right: 14px; border: 3px solid rgba(255,255,255,.85); border-radius: 50%;
-    overflow: hidden; width: 200px; height: 200px; background: #123a44; box-shadow: 0 3px 14px rgba(0,0,0,.6); }
+  #mapwrap { top: 14px; right: 14px; width: 200px; height: 200px; overflow: hidden;
+    border: 3px solid rgba(255,255,255,.85); border-radius: 50%; background: #123a44;
+    box-shadow: 0 3px 14px rgba(0,0,0,.6); }
   #map { display: block; width: 200px; height: 200px; }
   #clock { top: 222px; right: 18px; text-align: right; font-size: 14px; font-weight: bold; color: #dff7f2; }
   #speedo { bottom: 18px; right: 20px; text-align: right; font-size: 16px; }
   #speedo b { font-size: 40px; color: #fff; }
-  #radio { bottom: 18px; left: 20px; font-size: 14px; color: #ffe9a8; background: rgba(8,38,48,.7);
-    padding: 7px 11px; border-radius: 6px; }
+  #radio { bottom: 18px; left: 20px; font-size: 14px; color: #ffe9a8; padding: 7px 11px;
+    border-radius: 6px; background: rgba(8,38,48,.7); }
   #prompt { bottom: 100px; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: bold;
-    background: rgba(8,38,48,.85); padding: 9px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,.5); }
+    padding: 9px 18px; border-radius: 8px; background: rgba(8,38,48,.85);
+    border: 1px solid rgba(255,255,255,.5); }
   #toast { top: 22%; left: 50%; transform: translateX(-50%); font-size: 23px; font-weight: bold;
     color: #ffe9a8; text-align: center; }
-  #banner { top: 32%; left: 50%; transform: translateX(-50%); text-align: center; display: none; width: 90%; }
-  #banner h2 { margin: 0; font-size: 48px; letter-spacing: 4px; color: #ffd34d; text-shadow: 0 3px 0 rgba(0,0,0,.55), 0 6px 22px rgba(0,0,0,.7); }
+  #banner { top: 32%; left: 50%; transform: translateX(-50%); display: none; width: 90%; text-align: center; }
+  #banner h2 { margin: 0; font-size: 48px; letter-spacing: 4px; color: #ffd34d;
+    text-shadow: 0 3px 0 rgba(0,0,0,.55), 0 6px 22px rgba(0,0,0,.7); }
   #banner p { margin: 6px 0 0; font-size: 20px; color: #fff; }
   .overlay { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center; color: #fff;
     background: linear-gradient(180deg, rgba(6,26,34,.22) 0%, rgba(6,26,34,.5) 55%, rgba(6,26,34,.85) 100%); }
   .overlay h1 { margin: 0; font-size: 78px; letter-spacing: 10px; color: #ffe9a8;
     text-shadow: 0 4px 0 #ff7a5c, 0 8px 24px rgba(0,0,0,.6); }
-  .overlay h2 { margin: 2px 0 0; font-size: 27px; letter-spacing: 6px; color: #7ef0d4; font-weight: normal; }
-  .overlay .quote { margin: 26px 0 6px; font-size: 23px; font-style: italic; color: #fff; max-width: 660px; }
-  .overlay .story { margin: 0 0 22px; font-size: 16px; color: #cfeee9; max-width: 640px; line-height: 1.5; }
-  .overlay .go { font-size: 21px; font-weight: bold; background: #ff7a5c; color: #fff; border: none;
-    padding: 15px 36px; border-radius: 10px; cursor: pointer; letter-spacing: 2px;
+  .overlay h2 { margin: 2px 0 0; font-size: 27px; letter-spacing: 6px; font-weight: normal; color: #7ef0d4; }
+  .overlay .quote { margin: 26px 0 6px; max-width: 660px; font-size: 23px; font-style: italic; color: #fff; }
+  .overlay .story { margin: 0 0 22px; max-width: 640px; font-size: 16px; line-height: 1.5; color: #cfeee9; }
+  .overlay .go { font-size: 21px; font-weight: bold; letter-spacing: 2px; color: #fff;
+    background: #ff7a5c; border: none; padding: 15px 36px; border-radius: 10px; cursor: pointer;
     box-shadow: 0 4px 18px rgba(0,0,0,.5); pointer-events: auto; }
   .overlay .go:hover { background: #ff8d72; }
-  .overlay .keys { margin-top: 22px; font-size: 14px; color: #bfeef0; line-height: 1.7; }
+  .overlay .keys { margin-top: 22px; font-size: 14px; line-height: 1.7; color: #bfeef0; }
   #pause, #ending { display: none; }
   #ending .choice { display: flex; gap: 14px; margin-top: 18px; }
-  #ending .choice button { pointer-events: auto; font-size: 16px; font-weight: bold; padding: 12px 22px;
-    border-radius: 10px; border: none; cursor: pointer; }
+  #ending .choice button { pointer-events: auto; font-size: 16px; font-weight: bold;
+    padding: 12px 22px; border-radius: 10px; border: none; cursor: pointer; }
   #ending #payBtn { background: #2dd4a7; color: #04241c; }
   #ending #keepBtn { background: #ff7a5c; color: #fff; }
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap; }
   /* Touch controls: hidden on desktop, shown only on touch devices or
      with ?touch=1. Joystick bottom-left, action buttons bottom-right,
      clear of the minimap (top-right) and the mission tracker (top-left). */
   #touchUI { display: none; position: fixed; inset: 0; z-index: 6; pointer-events: none; }
   body.touch #touchUI { display: block; }
   #joy { position: absolute; left: 18px; bottom: 18px; width: 140px; height: 140px; border-radius: 50%;
-    background: rgba(8,38,48,.45); border: 2px solid rgba(255,255,255,.5); touch-action: none; pointer-events: auto; }
+    background: rgba(8,38,48,.45); border: 2px solid rgba(255,255,255,.5);
+    touch-action: none; pointer-events: auto; }
   #joyKnob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px;
     border-radius: 50%; background: rgba(255,122,92,.85); border: 2px solid rgba(255,255,255,.7); }
   #touchUI button { position: absolute; border-radius: 50%; border: 2px solid rgba(255,255,255,.65);
@@ -98,12 +104,13 @@
   <h2>ONE LAST DRIVE</h2>
   <p class="quote">“You got out. The bay didn’t let go.”</p>
   <p class="story">Mara “Reef” Calloway, ex-getaway driver. Her brother Danny owes the Vega
-    family $40,000 — and the bay always collects. One last string of jobs. Five nights.
-    Buy him out, or lose him to the tide.</p>
+    family $40,000 — and the bay always collects. Six nights across a golden-hour
+    Gulf-coast city: steal cars, outrun the police helicopter, light up Neon Row,
+    and bring him home. Buy him out, or lose him to the tide.</p>
   <button class="go" id="startBtn">▶ &nbsp;START THE ENGINE</button>
   <div class="keys">WASD drive / walk &nbsp;·&nbsp; E enter &amp; steal car &nbsp;·&nbsp; F punch &nbsp;·&nbsp; Click shoot (pistol)
     &nbsp;·&nbsp; SPACE handbrake &nbsp;·&nbsp; R radio &nbsp;·&nbsp; P pause &nbsp;·&nbsp; M mute<br>
-    5 missions · wanted level 0–5 stars · traffic, pedestrians, police · progress saves automatically</div>
+    6 missions · wanted level 0–5 stars · traffic, pedestrians, police, helicopter · progress saves automatically</div>
 </div>
 
 <div class="overlay" id="pause">

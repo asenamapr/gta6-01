@@ -1,22 +1,23 @@
-// SOLARA BAY — deterministic screenshot staging.
-// Written in this revision pass. Each shot is a different system, staged
-// so it reads instantly at thumbnail size, with the HUD and minimap
-// visible in every frame. The game freezes its simulation while a shot
-// is staged (normal play is untouched): traffic, police and Mara hold
-// exactly the pose this file sets, and the camera is rebuilt from that
-// pose every frame instead of drifting on the follow lerp.
+// SOLARA BAY — deterministic screenshot staging. Round 3 rewrite.
+// Each shot is a different system, staged so it reads instantly at
+// thumbnail size, HUD and minimap visible in every frame. The game
+// freezes its simulation while a shot is staged (normal play is
+// untouched): traffic, police, the helicopter and Mara hold exactly the
+// pose this file sets, and the camera is rebuilt from that pose every
+// frame instead of drifting on the follow lerp.
 //
 //   ?shot=start&seed=1  title over the bay skyline at golden hour
-//   ?shot=chase&seed=1  bridge chase, 3 stars, police right behind
-//   ?shot=play&seed=1   on-foot street life on the beach boulevard
+//   ?shot=chase&seed=1  bridge chase, 4 stars, police + helicopter
+//   ?shot=play&seed=1   on-foot in Neon Row as the signs light up
 //   ?shot=end&seed=1    heist moment on Gull Island, boat + $40,000
 'use strict';
 
-import { PED_COLORS, pick } from './config.js';
+import { SHIRTS, pick } from './config.js';
 
-// Pure staging data: where Mara, the car, the police and the crowd stand,
-// and what the HUD should say. main.js applies it; nothing here touches
-// the DOM or the renderer, so the staging stays testable on its own.
+// Pure staging data: where Mara, the car, the police, the helicopter and
+// the crowd stand, and what the HUD should say. main.js applies it;
+// nothing here touches the DOM or the renderer, so the staging stays
+// testable on its own.
 export function getShotSetup(shot) {
   if (shot === 'start') {
     return {
@@ -28,17 +29,19 @@ export function getShotSetup(shot) {
   }
   if (shot === 'chase') {
     // On the bridge deck, heading south toward Gull Island: open sky and
-    // water on both sides, no building canyon, police in frame behind.
+    // water on both sides, no building canyon, police in frame behind,
+    // helicopter overhead with its searchlight on the car.
     return {
       mode: 'chase',
       camera: { dist: 24, height: 10, lookAhead: 26 },
       playerCar: { x: 0, z: 196, heading: 0, speed: 24 },
-      wanted: 3, missionIndex: 2, stepIndex: 0, cash: 5500,
+      wanted: 4, missionIndex: 5, stepIndex: 1, cash: 5500,
       police: [
         { x: -4, z: 186, heading: 0, speed: 26 },
         { x: 4, z: 188, heading: 0, speed: 26 },
         { x: 0, z: 190, heading: 0, speed: 24 },
       ],
+      heli: { x: 10, y: 24, z: 214 },
       trafficAhead: [
         { x: -3, z: 232, heading: 0 },
         { x: 4, z: 248, heading: 0 },
@@ -47,16 +50,16 @@ export function getShotSetup(shot) {
     };
   }
   if (shot === 'play') {
-    // Beach boulevard: Mara on foot ON road 40 facing north up the palm
-    // row, crowd around her. (Never on a block: the waterfront shops at
-    // z=156 fill the frame if the camera sits inside one — the old shot
-    // was a flat wall for exactly that reason.)
+    // Neon Row, east side: Mara on foot on the 120 road facing north up
+    // the neon strip, crowd around her, signs lit. The camera sits on
+    // the road itself, never inside a building.
     return {
       mode: 'play',
       camera: { dist: 10.5, height: 5.2, lookAhead: 5 },
-      player: { x: 40, z: 140, heading: Math.PI },
+      player: { x: 120, z: 62, heading: Math.PI },
       missionIndex: 0, stepIndex: 0, cash: 0, wanted: 0,
       hasPistol: true, ammo: 12,
+      dusk: 0.85,
       crowd: [
         { dx: -4, dz: -8 }, { dx: 3, dz: -10 }, { dx: 7, dz: -6 },
         { dx: -8, dz: -4 }, { dx: 9, dz: -12 }, { dx: -2, dz: -14 },
@@ -72,7 +75,7 @@ export function getShotSetup(shot) {
     // never between her and the camera.
     return {
       mode: 'end',
-      camera: { x: 8, y: 4.5, z: 311, lookX: 8, lookY: 2.5, lookZ: 296 },
+      camera: { x: 8, y: 5.5, z: 318, lookX: 8, lookY: 2, lookZ: 296 },
       player: { x: 8, z: 296, heading: 0 },
       missionIndex: 5, stepIndex: 0, cash: 40000, wanted: 0,
       banner: { title: 'MISSION COMPLETE', text: '5. ONE LAST DRIVE \u2014 +$40,000' },
@@ -91,6 +94,7 @@ export function applyShotSetup(setup, ctx) {
   state.stepIndex = setup.stepIndex;
   state.cash = setup.cash || 0;
   state.wanted = setup.wanted || 0;
+  if (setup.dusk !== undefined) state.duskOverride = setup.dusk;
 
   if (setup.mode === 'start') {
     camera.position.set(setup.camera.x, setup.camera.y, setup.camera.z);
@@ -112,6 +116,7 @@ export function applyShotSetup(setup, ctx) {
       po.heading = pos.heading;
       po.speed = pos.speed;
     });
+    if (setup.heli) ctx.placeHeli(setup.heli.x, setup.heli.y, setup.heli.z);
     setup.trafficAhead.forEach((pos, i) => {
       const t = world.traffic[i];
       if (!t) return;
@@ -129,8 +134,8 @@ export function applyShotSetup(setup, ctx) {
     state.hasPistol = true;
     state.ammo = setup.ammo;
     setup.crowd.forEach((c) => {
-      const mesh = world.makePed(setup.player.x + c.dx, setup.player.z + c.dz, pick(pickRng, PED_COLORS));
-      world.peds.push({
+      const mesh = world.makeWalker(setup.player.x + c.dx, setup.player.z + c.dz, pick(pickRng, SHIRTS));
+      world.walkers.push({
         mesh, x: setup.player.x + c.dx, z: setup.player.z + c.dz,
         heading: pickRng() * Math.PI * 2, speed: 1.4, down: false, downT: 0, road: 150,
       });

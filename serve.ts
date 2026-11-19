@@ -1,9 +1,10 @@
-// A tiny static server for game/ (Node 22, standard library only), so an entry can be played
-// locally without a build step: `node serve.ts` serves game/ on http://localhost:8080,
-// or `node serve.ts --port 8081` for a second instance. It sends the MIME types a browser
-// game needs, refuses any path outside game/, logs each request line to stderr for
-// playtest debugging, and otherwise does nothing clever: this is a development
-// convenience, not a web server for the internet.
+// A tiny static server for game/ (Node 22, standard library only), so
+// the entry can be played locally without a build step:
+//   node serve.ts              serves game/ on http://localhost:8080
+//   node serve.ts --port 8081  a second instance on another port
+// It sends the MIME types a browser game needs, refuses any path outside
+// game/, and logs each request line to stderr for playtest debugging.
+// This is a development convenience, not a web server for the internet.
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
@@ -40,37 +41,38 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-createServer((request, response) => {
-  const url = new URL(request.url ?? '/', 'http://localhost');
-  let pathname;
-  try {
-    pathname = decodeURIComponent(url.pathname);
-  } catch {
-    response.writeHead(400).end('bad request');
-    return;
-  }
-  if (pathname.endsWith('/')) pathname += 'index.html';
-  const file = resolve(join(root, normalize(pathname)));
+const server = createServer((req, res) => {
+  const url = new URL(req.url || '/', 'http://localhost');
+  const rel = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, '');
+  const file = resolve(join(root, rel));
   if (file !== root && !file.startsWith(root + sep)) {
-    response.writeHead(403).end('forbidden');
+    res.writeHead(403, { 'content-type': 'text/plain' });
+    res.end('forbidden\n');
     return;
   }
-  let size;
+  let target = file;
   try {
-    const stats = statSync(file);
-    if (!stats.isFile()) throw new Error('not a file');
-    size = stats.size;
+    if (statSync(target).isDirectory()) target = join(target, 'index.html');
   } catch {
-    response.writeHead(404).end('not found');
+    res.writeHead(404, { 'content-type': 'text/plain' });
+    res.end('not found\n');
     return;
   }
-  if (verbose) console.error(request.method + ' ' + pathname + ' -> 200 (' + size + ' bytes)');
-  response.writeHead(200, {
-    'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
-    'content-length': size,
-    'cache-control': 'no-store',
-  });
-  createReadStream(file).pipe(response);
-}).listen(port, '127.0.0.1', () => {
-  console.log(`game/ is on http://localhost:${port}`);
+  try {
+    const stat = statSync(target);
+    res.writeHead(200, {
+      'content-type': MIME[extname(target)] || 'application/octet-stream',
+      'content-length': stat.size,
+      'cache-control': 'no-store',
+    });
+    createReadStream(target).pipe(res);
+    if (verbose) console.error(req.method + ' ' + url.pathname + ' -> 200');
+  } catch {
+    res.writeHead(404, { 'content-type': 'text/plain' });
+    res.end('not found\n');
+  }
+});
+
+server.listen(port, () => {
+  console.log('SOLARA BAY at http://localhost:' + port + '/');
 });

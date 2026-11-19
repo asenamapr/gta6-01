@@ -1,20 +1,26 @@
-// SOLARA BAY — shared tuning, palettes and mission data.
-// Written in this revision pass. Every number here is the single source of
-// truth for the world builder, the shot stager and the game loop, so a
-// density or balance change lands in one place instead of three.
+// SOLARA BAY — tuning, palettes and the six-mission story.
+// Round 3 rewrite. Everything the world builder, the shot stager and the
+// game loop need lives here, in one place, so a balance tweak never has
+// to be chased across three files. The palette stays exactly where the
+// user put it: golden-hour dusk, low sun, teal water, pink-orange sky.
 'use strict';
 
-export const CITY = 200;          // land half-extent in x
-export const SOUTH = 180;         // land ends here; bay to the south
-export const ROADS = [-160, -120, -80, -40, 0, 40, 80, 120, 160];
-export const SAVE_KEY = 'solara-bay-save-v1';
+export const HALF = 200;        // city half-extent along x
+export const SHORE = 180;       // land ends here; the bay begins
+export const GRID = [-160, -120, -80, -40, 0, 40, 80, 120, 160];
+export const SAVE_KEY = 'solara-bay-save-v2';
 export const TAU = Math.PI * 2;
+
+// The sun sits near 5 degrees above the horizon at 18:42; every hour of
+// game time after that deepens the dusk until Neon Row lights up.
+export const DUSK_START = 18.7;
+export const NIGHT_HOUR = 21.0;
 
 export const PASTEL = [
   0xffb3a0, 0x7fd8c8, 0xffd9a0, 0xf2f0e4,
   0x9adbe8, 0xff9d8a, 0xc9e8b8, 0xf7c8d8, 0xffc46b, 0x8fd0e8,
 ];
-export const CAR_COLORS = [
+export const PAINT = [
   0xff7a5c, 0x2a9d8f, 0xffd34d, 0xf2f0e4, 0x5fb3a8,
   0xe86a92, 0x4a7ab8, 0xffb3a0, 0x8a6fd8, 0x3a4148, 0xff9d2e, 0x7a9e4a,
 ];
@@ -22,21 +28,36 @@ export const CAR_NAMES = [
   'Coral GT', 'Bay Cruiser', 'Sunset Coupe', 'Palm Sedan',
   'Harbor Hatch', 'Tide Runner', 'Dusk Coupe', 'Marina GT',
 ];
-export const PED_COLORS = [
+export const SHIRTS = [
   0xffd34d, 0x7fd8c8, 0xe86a92, 0xf2f0e4, 0x9adbe8,
   0xff9d8a, 0xc9e8b8, 0xff7a5c, 0x4a7ab8, 0xffffff, 0x2a9d8f, 0xffb3a0,
 ];
-// How many of each the city holds after this revision. These are the
-// density numbers the judge actually sees in the screenshots.
-export const DENSITY = {
-  trafficCars: 46,
-  parkedCars: 26,
-  pedestrians: 62,
-  palms: 170,
-  lampsEvery: 40,
-  benches: 36,
-  billboards: 4,
+export const SKINS = [0xd9a583, 0xc98d64, 0x8a5a3b, 0xf0c8a0];
+export const HAIR = [0x2a1a12, 0x4a2a12, 0x111111, 0x8a6a4d, 0xd8d8d8];
+export const NEON = [0xff2e88, 0x2ee8ff, 0xffd34d, 0x7dff5c, 0xb46bff, 0xff7a5c];
+
+// Traffic mix: most of the street is sedans, but trucks and buses now
+// roll through too, and they drive slower and hit harder.
+export const VEHICLE_KINDS = ['sedan', 'sedan', 'sedan', 'sedan', 'truck', 'bus'];
+export const VEHICLE_STATS = {
+  sedan: { length: 4.6, width: 2.1, cruise: 8, top: 15, mass: 1 },
+  truck: { length: 7.2, width: 2.4, cruise: 6, top: 11, mass: 2.2 },
+  bus:   { length: 9.4, width: 2.6, cruise: 5, top: 10, mass: 2.8 },
 };
+
+export const DENSITY = {
+  traffic: 48,
+  parked: 26,
+  walkers: 64,
+  palms: 170,
+  lampGap: 40,
+  benches: 36,
+  neonSigns: 14,
+};
+
+// Neon Row: the casino strip on the east side, along the 120 road
+// between the cross streets at -40 and 80. Dusk turns its signs on.
+export const NEON_ROW = { x: 120, zMin: -40, zMax: 80, name: 'NEON ROW' };
 
 export const MISSIONS = [
   {
@@ -81,17 +102,26 @@ export const MISSIONS = [
     steps: [
       { type: 'goto', x: 40, z: -8, text: 'Reach Solara Trust bank downtown', needCar: false, label: 'SOLARA TRUST' },
       { type: 'interact', x: 40, z: -8, text: 'Walk to the bank doors and press E \u2014 grab the bag', label: 'THE VAULT' },
-      // needCar is false here on purpose: a player who reaches the boat on
-      // foot after ditching a car on the island must still be able to finish.
       { type: 'goto', x: 14, z: 306, text: 'Escape to the boat on Gull Island \u2014 4 stars, everything on the line', needCar: false, wanted: 4, label: 'THE BOAT' },
       { type: 'choice', text: 'The money is in the bag. Danny is free \u2014 if you pay.', label: 'THE CHOICE' },
     ],
     reward: 40000,
   },
+  {
+    name: '6. THE LONG WAY HOME',
+    intro: 'The choice is made, but Vega\u2019s crew is already on the bridge. Night has fallen. Outrun them across the harbor \u2014 the long way home.',
+    steps: [
+      { type: 'goto', x: 0, z: 235, text: 'Fight through to the harbor bridge \u2014 5 stars, helicopter overhead', needCar: true, wanted: 5, label: 'HARBOR BRIDGE' },
+      { type: 'survive', seconds: 20, text: 'Outrun the Vega crew \u2014 stay ahead for 20 seconds', wanted: 5, label: 'OUTRUN THEM' },
+      { type: 'goto', x: 14, z: 306, text: 'Reach the boat on Gull Island and go home', needCar: false, label: 'THE BOAT' },
+    ],
+    reward: 10000,
+  },
 ];
 
 export function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 export function lerp(a, b, t) { return a + (b - a) * t; }
+export function damp(a, b, lambda, dt) { return lerp(a, b, 1 - Math.exp(-lambda * dt)); }
 export function angDiff(a, b) {
   let d = (b - a) % TAU;
   if (d > Math.PI) d -= TAU;
@@ -108,3 +138,4 @@ export function mulberry32(seed) {
   };
 }
 export function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
+export function chance(rng, p) { return rng() < p; }
