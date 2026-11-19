@@ -1,18 +1,20 @@
 // SOLARA BAY — tuning, palettes and the six-mission story.
-// Round 3 rewrite. Everything the world builder, the shot stager and the
-// game loop need lives here, in one place, so a balance tweak never has
-// to be chased across three files. The palette stays exactly where the
-// user put it: golden-hour dusk, low sun, teal water, pink-orange sky.
+// Round 4 rewrite. One home for every number the world builder, the
+// shot stager and the game loop share, so a balance tweak is made once
+// and lands everywhere. The palette does not move: golden-hour dusk,
+// low sun, teal water, pink-orange sky — the direction from the start.
+// New in this round: the Night Shift courier system (see below) —
+// named pickup spots, payout and timer tuning, streak rules.
 'use strict';
 
 export const HALF = 200;        // city half-extent along x
 export const SHORE = 180;       // land ends here; the bay begins
 export const GRID = [-160, -120, -80, -40, 0, 40, 80, 120, 160];
-export const SAVE_KEY = 'solara-bay-save-v2';
+export const SAVE_KEY = 'solara-bay-save-v3';
 export const TAU = Math.PI * 2;
 
-// The sun sits near 5 degrees above the horizon at 18:42; every hour of
-// game time after that deepens the dusk until Neon Row lights up.
+// The sun sits near 5 degrees above the horizon at 18:42; every hour
+// of game time after that deepens the dusk until Neon Row lights up.
 export const DUSK_START = 18.7;
 export const NIGHT_HOUR = 21.0;
 
@@ -36,8 +38,8 @@ export const SKINS = [0xd9a583, 0xc98d64, 0x8a5a3b, 0xf0c8a0];
 export const HAIR = [0x2a1a12, 0x4a2a12, 0x111111, 0x8a6a4d, 0xd8d8d8];
 export const NEON = [0xff2e88, 0x2ee8ff, 0xffd34d, 0x7dff5c, 0xb46bff, 0xff7a5c];
 
-// Traffic mix: most of the street is sedans, but trucks and buses now
-// roll through too, and they drive slower and hit harder.
+// Traffic mix: mostly sedans, with slower trucks and long buses that
+// hit harder and shove back less when you hit them.
 export const VEHICLE_KINDS = ['sedan', 'sedan', 'sedan', 'sedan', 'truck', 'bus'];
 export const VEHICLE_STATS = {
   sedan: { length: 4.6, width: 2.1, cruise: 8, top: 15, mass: 1 },
@@ -58,6 +60,39 @@ export const DENSITY = {
 // Neon Row: the casino strip on the east side, along the 120 road
 // between the cross streets at -40 and 80. Dusk turns its signs on.
 export const NEON_ROW = { x: 120, zMin: -40, zMax: 80, name: 'NEON ROW' };
+
+// ------------------------------------------------------------------
+// NIGHT SHIFT — the courier job system, unlocked after mission 6.
+// The city stays in full night, neon and lamps on everywhere. Jobs
+// chain: finish one and the next spawns. Each job is a pickup, then a
+// drop-off, against a timer; the payout is in-game cash, and a streak
+// multiplier rewards back-to-back deliveries. Missing a timer forfeits
+// that job's payout and resets the streak, but the shift goes on.
+// ------------------------------------------------------------------
+export const NIGHT_JOB_SPOTS = [
+  { name: 'STARFISH CASINO', x: 120, z: -40 },
+  { name: 'REEF\u2019S GARAGE', x: -140, z: -140 },
+  { name: 'SOLARA TRUST', x: 40, z: -40 },
+  { name: 'PALM COURT', x: -120, z: 120 },
+  { name: 'CORAL COURT', x: 120, z: -120 },
+  { name: 'GULL ISLAND DOCK', x: 14, z: 306 },
+  { name: 'BEACH BOULEVARD', x: -160, z: 160 },
+  { name: 'NEON ROW GATE', x: 120, z: 80 },
+  { name: 'HARBOR BRIDGE', x: 0, z: 235 },
+  { name: 'MARINA WEST', x: -160, z: -160 },
+];
+export const NIGHT_JOB = {
+  basePay: 220,          // flat part of every payout
+  payPerMetre: 6,        // payout grows with the pickup-to-drop distance
+  payPerStreak: 40,      // extra per job in the current streak
+  pickupRadius: 7,       // how close to count as "arrived"
+  dropRadius: 8,
+  timeBase: 55,          // seconds before distance is added
+  timePerMetre: 0.45,    // extra seconds per metre of the leg
+  timeMin: 45,
+  timeMax: 150,
+  betweenJobs: 3,        // seconds of quiet before the next job spawns
+};
 
 export const MISSIONS = [
   {
@@ -139,3 +174,8 @@ export function mulberry32(seed) {
 }
 export function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
 export function chance(rng, p) { return rng() < p; }
+export function dist2d(ax, az, bx, bz) { return Math.hypot(ax - bx, az - bz); }
+export function fmtClock(seconds) {
+  const s = Math.max(0, Math.ceil(seconds));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}

@@ -1,8 +1,11 @@
 // SOLARA BAY — the city: ground, skyline, Neon Row, bridge, vehicles,
-// pedestrians, pickups and the waypoint beacon. Round 3 rewrite.
-// New here: the Neon Row casino strip (signs light up at dusk), trucks
-// and buses in traffic, three pedestrian body types, and a police
-// helicopter the game can spawn at four and five stars.
+// pedestrians, pickups and the waypoint beacon. Round 4 rewrite.
+// New here: a courier job marker (cyan beacon, distinct from the gold
+// mission beacon) for the Night Shift courier system, plus a night
+// courier van parked by Neon Row that the shift can use.
+// The rest carries over: the Neon Row casino strip (signs light up at
+// dusk), trucks and buses in traffic, three pedestrian body types, and
+// a police helicopter the game can spawn at four and five stars.
 'use strict';
 
 import {
@@ -26,6 +29,8 @@ export function buildWorld(scene, rng) {
   const root = new THREE.Group();
   scene.add(root);
 
+  // One shared Lambert material per colour/option pair, so the city
+  // does not create a new material for every wall and window.
   const cache = new Map();
   function paint(color, opts) {
     const key = color + '|' + JSON.stringify(opts || {});
@@ -378,6 +383,12 @@ export function buildWorld(scene, rng) {
     courierCar.position.set(120, 0, 140);
     courierCar.rotation.y = Math.PI / 2;
     parked.push({ mesh: courierCar, x: 120, z: 140, heading: Math.PI / 2, name: 'Vega Courier', courier: true, stolen: false });
+    // Night Shift van — a teal truck parked by the Neon Row gate, the
+    // shift's own ride for players who want it.
+    const van = makeVehicle(0x2ee8ff, false, 'truck');
+    van.position.set(108, 0, 96);
+    van.rotation.y = Math.PI;
+    parked.push({ mesh: van, x: 108, z: 96, heading: Math.PI, name: 'Night Courier Van', courier: false, stolen: false });
   }
 
   // ---------- pedestrians: three body types, varied dress ----------
@@ -448,7 +459,7 @@ export function buildWorld(scene, rng) {
     return g;
   }
 
-  // ---------- pistol pickup + waypoint beacon ----------
+  // ---------- pistol pickup + waypoint beacon + courier marker ----------
   const pistolPickup = new THREE.Group();
   {
     const c = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.5, 0.7), paint(0x2e3438));
@@ -468,10 +479,31 @@ export function buildWorld(scene, rng) {
     beacon.userData.diamond = diamond;
     scene.add(beacon);
   }
+  // Courier marker: cyan, so a Night Shift job never reads as a
+  // mission waypoint. Same shape language (pillar + spinning diamond)
+  // in a different colour, plus a ground ring marking the arrival spot.
+  function makeCourierMarker() {
+    const g = new THREE.Group();
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 70, 12, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x2ee8ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }));
+    pillar.position.y = 35; g.add(pillar);
+    const diamond = new THREE.Mesh(new THREE.OctahedronGeometry(1.5), paint(0x2ee8ff, { emissive: 0x2ee8ff, emissiveIntensity: 1.2 }));
+    diamond.position.y = 7; g.add(diamond);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(3.2, 4.2, 24),
+      new THREE.MeshBasicMaterial({ color: 0x2ee8ff, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.08; g.add(ring);
+    g.userData.diamond = diamond;
+    g.userData.ring = ring;
+    g.visible = false;
+    scene.add(g);
+    return g;
+  }
+  const courierMarker = makeCourierMarker();
 
   return {
     root, solids, facades, palmCrowns, traffic, parked, walkers, police,
     neonMeshes, lampGlows, courierCar, danny, pistolPickup, beacon,
+    courierMarker,
     pushOut, makeVehicle, makeWalker, spawnTraffic, makeHeli,
   };
 }

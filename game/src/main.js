@@ -1,15 +1,18 @@
 // SOLARA BAY: One Last Drive — a 3D open-world crime game.
-// Round 3 rewrite. three.js r152 (global THREE) renders the city;
+// Round 4 rewrite. three.js r152 (global THREE) renders the city;
 // plain ES modules, no network requests, keyboard + mouse + touch.
-// New in this round: a sixth mission (night epilogue chase), a police
-// helicopter at 4–5 stars, the Neon Row casino strip that lights up as
-// dusk deepens, damage smoke and skid marks, and trucks, buses and
-// varied pedestrians in the traffic.
+// New in this round: Night Shift free-roam — after mission 6 the city
+// stays in full night and a courier job system runs (pickup markers,
+// timers, payouts, chaining, job HUD, night score). Everything from
+// Round 3 carries over: six missions, the police helicopter at 4–5
+// stars, Neon Row, damage smoke and skid marks, trucks, buses and
+// varied pedestrians.
 'use strict';
 
 import {
   GRID, TAU, SAVE_KEY, MISSIONS, SHIRTS, DUSK_START, NIGHT_HOUR,
-  clamp, lerp, angDiff, mulberry32, pick,
+  NIGHT_JOB, NIGHT_JOB_SPOTS,
+  clamp, lerp, angDiff, mulberry32, pick, dist2d, fmtClock,
 } from './config.js';
 import { setupRenderer, setupScene, makeCameraRig, drawMinimap } from './render.js';
 import { buildWorld } from './world.js';
@@ -29,10 +32,13 @@ const state = {
   hasPistol: false, ammo: 0,
   inCar: false, car: null, speed: 0,
   time: DUSK_START,
-  muted: false, radioStep: 0,
+  muted: false,
   lastCrimeT: -999, carsStolen: 0, pedsHit: 0, hardHits: 0,
   dannyInCar: false, ending: null,
   shot: SHOT, duskOverride: null,
+  // Night Shift (Round 4): unlocked by finishing mission 6.
+  nightShift: false, nightScore: 0, jobsDone: 0, jobsFailed: 0,
+  streak: 0, job: null, jobCooldown: 0,
 };
 let elapsed = 0;
 let camHeading = 0;
@@ -42,6 +48,8 @@ function saveGame() {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       cash: state.cash, missionIndex: state.missionIndex,
       health: state.health, hasPistol: state.hasPistol, ammo: state.ammo,
+      nightShift: state.nightShift, nightScore: state.nightScore,
+      jobsDone: state.jobsDone, streak: state.streak,
     }));
   } catch (e) { /* private mode */ }
 }
@@ -54,7 +62,7 @@ function loadGame() {
 
 // ---------- sound: WebAudio synth effects + moody radio loop ----------
 const Sound = {
-  ctx: null, master: null, engineOsc: null, engineGain: null,
+  ctx: null, master: null, engineOsc: null, engineGain: null, radioStep: 0,
   init() {
     if (this.ctx) return;
     try {
@@ -114,6 +122,7 @@ const Sound = {
     if (name === 'crash') { this.burst(0.25, 0.4, 700); }
     if (name === 'rotor') { this.burst(0.09, 0.12, 300); }
     if (name === 'skid') { this.burst(0.3, 0.14, 1400); }
+    if (name === 'job') { this.tone(660, 0.1, 'triangle', 0.22); this.tone(880, 0.1, 'triangle', 0.22, 0.08); this.tone(1320, 0.22, 'triangle', 0.22, 0.16); }
   },
   startRadio() {
     const chords = [[220, 261.6, 329.6], [174.6, 220, 261.6], [196, 246.9, 293.7], [164.8, 196, 246.9]];
@@ -255,6 +264,9 @@ function playerPos() {
 }
 function distTo(x, z) { const p = playerPos(); return Math.hypot(p.x - x, p.z - z); }
 function duskFactor() {
+  // Night Shift pins the city at full night; otherwise dusk follows
+  // the clock, or a shot's override.
+  if (state.nightShift) return 1;
   if (state.duskOverride !== null && state.duskOverride !== undefined) return state.duskOverride;
   return clamp((state.time - DUSK_START) / (NIGHT_HOUR - DUSK_START), 0, 1);
 }
@@ -352,8 +364,8 @@ function addWanted(n, why) {
 }
 
 // The helicopter only flies at 4–5 stars: it holds above the player,
-// its searchlight cone tracks the car, and the rotor chops on the radio
-// channel so the player hears it before they see it.
+// its searchlight cone tracks the car, and the rotor chops on the
+// radio channel so the player hears it before they see it.
 const heli = { mesh: null, target: null, rotorT: 0 };
 function ensureHeli() {
   if (heli.mesh) return;
@@ -738,7 +750,8 @@ function completeMission() {
   state.stepTimer = 0;
   saveGame();
   if (state.missionIndex >= MISSIONS.length) {
-    showBanner('SOLARA BAY', 'All six jobs done. Mara made it home. The bay remembers.');
+    // The story is done — the Night Shift begins (see below).
+    startNightShift();
   } else {
     const next = MISSIONS[state.missionIndex];
     setTimeout(() => toast(next.name + ': ' + next.intro), 2600);
@@ -836,6 +849,123 @@ function beginEpilogue(choice) {
   saveGame();
 }
 
+// ---------- NIGHT SHIFT — courier job system (Round 4) ----------
+// Unlocks the moment mission 6 completes. The city stays in full
+// night (duskFactor returns 1 while nightShift is on), the heat cools
+// to zero, and courier jobs chain forever: pick up at one named spot,
+// drop off at another, against a timer. Payouts land in cash and in
+// the night score; the streak multiplier rewards back-to-back jobs.
+// A missed timer forfeits that job's payout and resets the streak,
+// but the shift continues — there is no fail state, only a slower night.
+function startNightShift() {
+  if (state.nightShift) return;
+  state.nightShift = true;
+  state.time = NIGHT_HOUR;
+  state.wanted = 0;
+  state.jobCooldown = 2;
+  showBanner('NIGHT SHIFT', 'All six jobs done. The bay runs on couriers now \u2014 take the night, Mara.');
+  setTimeout(() => toast('NIGHT SHIFT unlocked \u2014 courier jobs pay cash. First job incoming.'), 2600);
+  saveGame();
+}
+function jobPayout(from, to) {
+  const d = dist2d(from.x, from.z, to.x, to.z);
+  return NIGHT_JOB.basePay + Math.round(d * NIGHT_JOB.payPerMetre) + state.streak * NIGHT_JOB.payPerStreak;
+}
+function jobTimer(from, to) {
+  const d = dist2d(from.x, from.z, to.x, to.z);
+  return clamp(NIGHT_JOB.timeBase + d * NIGHT_JOB.timePerMetre, NIGHT_JOB.timeMin, NIGHT_JOB.timeMax);
+}
+function spawnJob() {
+  const p = playerPos();
+  let pickup = pick(rng, NIGHT_JOB_SPOTS);
+  // Don't send Mara back to the spot she just left, or to the one
+  // under her feet — a job should always be a drive.
+  let guard = 0;
+  while ((state.job && pickup.name === state.job.dest) || dist2d(p.x, p.z, pickup.x, pickup.z) < 30) {
+    pickup = pick(rng, NIGHT_JOB_SPOTS);
+    if (++guard > 12) break;
+  }
+  let dest = pick(rng, NIGHT_JOB_SPOTS);
+  guard = 0;
+  while (dest.name === pickup.name) {
+    dest = pick(rng, NIGHT_JOB_SPOTS);
+    if (++guard > 12) break;
+  }
+  state.job = {
+    active: true,
+    phase: 'pickup',
+    spot: pickup.name, x: pickup.x, z: pickup.z,
+    dest: dest.name, dx: dest.x, dz: dest.z,
+    payout: jobPayout(pickup, dest),
+    timer: jobTimer(p, pickup),
+  };
+  placeJobMarker(pickup.x, pickup.z);
+  toast('COURIER JOB \u2014 pick up at ' + pickup.name + ' (' + fmtClock(state.job.timer) + ', $' + state.job.payout.toLocaleString() + ')');
+  Sound.sfx('job');
+}
+function placeJobMarker(x, z) {
+  world.courierMarker.visible = true;
+  world.courierMarker.position.set(x, 0, z);
+}
+function hideJobMarker() {
+  world.courierMarker.visible = false;
+}
+function completeJobLeg() {
+  const job = state.job;
+  if (job.phase === 'pickup') {
+    // Parcel collected: same payout, fresh timer for the drop leg.
+    job.phase = 'dropoff';
+    job.spot = job.dest;
+    job.x = job.dx; job.z = job.dz;
+    const p = playerPos();
+    job.timer = jobTimer(p, { x: job.dx, z: job.dz });
+    placeJobMarker(job.dx, job.dz);
+    toast('Parcel collected \u2014 deliver to ' + job.dest + ' (' + fmtClock(job.timer) + ')');
+    Sound.sfx('pickup');
+    return;
+  }
+  // Delivered: payout lands in cash and in the night score, the streak
+  // grows, and the next job spawns after a short breather.
+  state.cash += job.payout;
+  state.nightScore += job.payout;
+  state.streak++;
+  state.jobsDone++;
+  showBanner('DELIVERED', '$' + job.payout.toLocaleString() + ' \u00b7 streak ' + state.streak + ' \u00b7 night score ' + state.nightScore.toLocaleString());
+  Sound.sfx('complete');
+  Sound.sfx('cash');
+  state.job = null;
+  state.jobCooldown = NIGHT_JOB.betweenJobs;
+  hideJobMarker();
+  saveGame();
+}
+function failJob() {
+  const job = state.job;
+  toast('Job expired \u2014 ' + job.spot + ' payout lost. Streak reset.');
+  Sound.sfx('fail');
+  state.streak = 0;
+  state.jobsFailed++;
+  state.job = null;
+  state.jobCooldown = NIGHT_JOB.betweenJobs;
+  hideJobMarker();
+  saveGame();
+}
+function jobTarget() {
+  if (!state.job || !state.job.active) return null;
+  return { x: state.job.x, z: state.job.z };
+}
+function updateNightShift(dt) {
+  if (!state.nightShift) return;
+  if (state.job && state.job.active) {
+    state.job.timer -= dt;
+    if (state.job.timer <= 0) { failJob(); return; }
+    const radius = state.job.phase === 'pickup' ? NIGHT_JOB.pickupRadius : NIGHT_JOB.dropRadius;
+    if (distTo(state.job.x, state.job.z) < radius) completeJobLeg();
+    return;
+  }
+  state.jobCooldown -= dt;
+  if (state.jobCooldown <= 0) spawnJob();
+}
+
 // ---------- HUD / minimap ----------
 const $ = (id) => document.getElementById(id);
 let toastTimer = null;
@@ -866,9 +996,32 @@ function updateHUD() {
     $('mtitle').textContent = m.name + '  \u00b7  $' + m.reward.toLocaleString();
     const s = currentStep();
     $('mobj').textContent = s ? s.text : 'All jobs done.';
+  } else if (state.nightShift) {
+    $('mtitle').textContent = 'NIGHT SHIFT \u2014 FREE ROAM';
+    $('mobj').textContent = 'All six jobs complete. Courier jobs pay cash \u2014 follow the cyan marker.';
   } else {
     $('mtitle').textContent = 'SOLARA BAY \u2014 FREE ROAM';
     $('mobj').textContent = 'All six jobs complete. The bay is yours \u2014 drive, steal, survive.';
+  }
+  // Night Shift job panel: timer + payout + streak + night score.
+  const jobEl = $('job');
+  if (state.nightShift) {
+    jobEl.style.display = 'block';
+    if (state.job && state.job.active) {
+      const leg = state.job.phase === 'pickup' ? 'PICK UP' : 'DELIVER';
+      $('jobline1').textContent = leg + ' \u2014 ' + state.job.spot + ' \u00b7 $' + state.job.payout.toLocaleString();
+      $('jobline2').textContent = fmtClock(state.job.timer) + ' left \u00b7 streak ' + state.streak
+        + ' \u00b7 score ' + state.nightScore.toLocaleString()
+        + ' \u00b7 done ' + state.jobsDone;
+      jobEl.classList.toggle('urgent', state.job.timer < 15);
+    } else {
+      $('jobline1').textContent = 'Next courier job in ' + Math.max(1, Math.ceil(state.jobCooldown)) + 's\u2026';
+      $('jobline2').textContent = 'streak ' + state.streak + ' \u00b7 score ' + state.nightScore.toLocaleString()
+        + ' \u00b7 done ' + state.jobsDone + ' \u00b7 missed ' + state.jobsFailed;
+      jobEl.classList.remove('urgent');
+    }
+  } else {
+    jobEl.style.display = 'none';
   }
   $('speed').textContent = Math.round(state.speed);
   $('vehname').textContent = state.inCar && state.car
@@ -899,6 +1052,7 @@ function refreshMinimap() {
     dannyInCar: state.dannyInCar,
     missionIndex: state.missionIndex,
     waypoint: stepTarget(),
+    job: jobTarget(),
     player: { x: playerPos().x, z: playerPos().z },
     playerHeading: state.inCar && state.car ? state.car.heading : player.heading,
     elapsed,
@@ -912,13 +1066,26 @@ function startGame() {
   $('start').style.display = 'none';
   Sound.init();
   const saved = loadGame();
-  if (saved && saved.missionIndex > 0 && SHOT === '') {
-    state.cash = saved.cash || 0;
-    state.missionIndex = Math.min(saved.missionIndex, MISSIONS.length - 1);
-    state.health = saved.health || 100;
-    state.hasPistol = !!saved.hasPistol;
-    state.ammo = saved.ammo || 0;
-    toast('Save loaded \u2014 ' + (MISSIONS[state.missionIndex] ? MISSIONS[state.missionIndex].name : 'free roam'));
+  if (saved && SHOT === '') {
+    if (saved.missionIndex > 0) {
+      state.cash = saved.cash || 0;
+      state.missionIndex = Math.min(saved.missionIndex, MISSIONS.length);
+      state.health = saved.health || 100;
+      state.hasPistol = !!saved.hasPistol;
+      state.ammo = saved.ammo || 0;
+      state.nightScore = saved.nightScore || 0;
+      state.jobsDone = saved.jobsDone || 0;
+      state.streak = saved.streak || 0;
+      if (saved.nightShift || saved.missionIndex >= MISSIONS.length) {
+        // A finished save reopens straight into the Night Shift.
+        state.nightShift = true;
+        state.time = NIGHT_HOUR;
+        state.jobCooldown = 2;
+        toast('Night Shift \u2014 welcome back, Mara. First job incoming.');
+      } else {
+        toast('Save loaded \u2014 ' + MISSIONS[state.missionIndex].name);
+      }
+    }
   }
   const m = currentMission();
   if (m) { toast(m.name + ': ' + m.intro); setStepWanted(); }
@@ -949,16 +1116,17 @@ function applyShot() {
   $('start').style.display = setup.showStartOverlay ? 'flex' : 'none';
   applyShotSetup(setup, {
     state, player, world, camera, pickRng: rng,
-    enterCarSilent, spawnPolice, placeHeli,
+    enterCarSilent, spawnPolice, placeHeli, placeJobMarker,
   });
   if (setup.mode === 'chase') camRig.heading = 0;
   if (setup.mode === 'play') camRig.heading = Math.PI;
-  if (setup.mode === 'end') {
+  if (setup.mode === 'night') {
+    camRig.heading = Math.PI;
     showBanner(setup.banner.title, setup.banner.text);
     $('banner').style.display = 'block';
   }
-  // Staged poses are frozen: the frame loop rebuilds the camera from the
-  // pose every tick instead of letting the follow camera drift away.
+  // Staged poses are frozen: the frame loop rebuilds the camera from
+  // the pose every tick instead of letting the follow camera drift away.
   updateHUD();
   refreshMinimap();
 }
@@ -970,7 +1138,7 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
   if (SHOT && shotSetup) {
-    // Frozen shot: only the ambient animation moves (palms, beacon,
+    // Frozen shot: only the ambient animation moves (palms, beacons,
     // police light bars, helicopter rotor), so the screenshot matches
     // the staged pose.
     elapsed += dt;
@@ -979,6 +1147,12 @@ function frame() {
     if (world.beacon.visible) {
       world.beacon.userData.diamond.rotation.y += dt * 2;
       world.beacon.userData.diamond.position.y = 8 + Math.sin(elapsed * 2.5) * 0.8;
+    }
+    if (world.courierMarker.visible) {
+      world.courierMarker.userData.diamond.rotation.y += dt * 2.4;
+      world.courierMarker.userData.diamond.position.y = 7 + Math.sin(elapsed * 3) * 0.7;
+      const pulse = 0.55 + Math.sin(elapsed * 4) * 0.2;
+      world.courierMarker.userData.ring.material.opacity = pulse;
     }
     for (const po of police) {
       const phase = Math.floor(elapsed * 4) % 2 === 0;
@@ -996,16 +1170,15 @@ function frame() {
       camRig.snapTo(state.car.mesh.position, 0, shotSetup.camera.dist, shotSetup.camera.height, shotSetup.camera.lookAhead);
     } else if (shotSetup.mode === 'play') {
       camRig.snapTo({ x: player.x, z: player.z }, Math.PI, shotSetup.camera.dist, shotSetup.camera.height, shotSetup.camera.lookAhead);
-    } else if (shotSetup.mode === 'end') {
-      camRig.place(shotSetup.camera.x, shotSetup.camera.y, shotSetup.camera.z,
-        shotSetup.camera.lookX, shotSetup.camera.lookY, shotSetup.camera.lookZ);
+    } else if (shotSetup.mode === 'night' && state.car) {
+      camRig.snapTo(state.car.mesh.position, Math.PI, shotSetup.camera.dist, shotSetup.camera.height, shotSetup.camera.lookAhead);
       $('banner').style.display = 'block';
       $('bannertitle').textContent = shotSetup.banner.title;
       $('bannertext').textContent = shotSetup.banner.text;
     }
   } else if (state.started && !state.paused && !state.over) {
     elapsed += dt;
-    state.time = DUSK_START + elapsed / 2400;
+    if (!state.nightShift) state.time = DUSK_START + elapsed / 2400;
     setDusk(duskFactor(), world.neonMeshes, world.lampGlows);
     updatePlayer(dt);
     updateTraffic(dt);
@@ -1013,6 +1186,7 @@ function frame() {
     updatePolice(dt);
     updateHeli(dt);
     updateMissions(dt);
+    updateNightShift(dt);
     updateSmoke(dt);
     updateSkids(dt);
     if (!state.hasPistol && Math.hypot(player.x + 128, player.z + 128) < 2.5 && !state.inCar) {
@@ -1022,6 +1196,11 @@ function frame() {
       Sound.sfx('pickup');
     }
     if (world.pistolPickup.visible) world.pistolPickup.rotation.y += dt * 2;
+    if (world.courierMarker.visible) {
+      world.courierMarker.userData.diamond.rotation.y += dt * 2.4;
+      world.courierMarker.userData.diamond.position.y = 7 + Math.sin(elapsed * 3) * 0.7;
+      world.courierMarker.userData.ring.material.opacity = 0.55 + Math.sin(elapsed * 4) * 0.2;
+    }
     for (let i = 0; i < world.palmCrowns.length; i++) world.palmCrowns[i].rotation.z = Math.sin(elapsed * 0.8 + i) * 0.08;
     if (state.wanted === 0 && state.health < 100) state.health = Math.min(100, state.health + dt * 2);
     if (state.health <= 0) {
@@ -1050,7 +1229,13 @@ function frame() {
 }
 
 // Debug handle (read-only state for testing / verification).
-window.SOLARA = { state, player, get car() { return state.car; }, get pos() { return playerPos(); } };
+window.SOLARA = {
+  state, player,
+  get car() { return state.car; },
+  get pos() { return playerPos(); },
+  get job() { return state.job; },
+  startNightShift, spawnJob,
+};
 
 // ---------- init ----------
 setupTouch();

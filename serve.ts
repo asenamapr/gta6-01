@@ -2,9 +2,10 @@
 // the entry can be played locally without a build step:
 //   node serve.ts              serves game/ on http://localhost:8080
 //   node serve.ts --port 8081  a second instance on another port
-// It sends the MIME types a browser game needs, refuses any path outside
-// game/, and logs each request line to stderr for playtest debugging.
-// This is a development convenience, not a web server for the internet.
+//   node serve.ts --verbose    log every request line to stderr
+// It sends the MIME types a browser game needs, refuses any path
+// outside game/, and never lists directories. This is a development
+// convenience for playtesting, not a web server for the internet.
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';

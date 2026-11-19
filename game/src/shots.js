@@ -1,23 +1,23 @@
-// SOLARA BAY — deterministic screenshot staging. Round 3 rewrite.
+// SOLARA BAY — deterministic screenshot staging. Round 4 rewrite.
 // Each shot is a different system, staged so it reads instantly at
 // thumbnail size, HUD and minimap visible in every frame. The game
 // freezes its simulation while a shot is staged (normal play is
-// untouched): traffic, police, the helicopter and Mara hold exactly the
-// pose this file sets, and the camera is rebuilt from that pose every
-// frame instead of drifting on the follow lerp.
+// untouched): traffic, police, the helicopter and Mara hold exactly
+// the pose this file sets, and the camera is rebuilt from that pose
+// every frame instead of drifting on the follow lerp.
 //
 //   ?shot=start&seed=1  title over the bay skyline at golden hour
 //   ?shot=chase&seed=1  bridge chase, 4 stars, police + helicopter
 //   ?shot=play&seed=1   on-foot in Neon Row as the signs light up
-//   ?shot=end&seed=1    heist moment on Gull Island, boat + $40,000
+//   ?shot=end&seed=1    Night Shift: courier job in Neon Row at night
 'use strict';
 
-import { SHIRTS, pick } from './config.js';
+import { SHIRTS, NIGHT_HOUR, pick } from './config.js';
 
-// Pure staging data: where Mara, the car, the police, the helicopter and
-// the crowd stand, and what the HUD should say. main.js applies it;
-// nothing here touches the DOM or the renderer, so the staging stays
-// testable on its own.
+// Pure staging data: where Mara, the car, the police, the helicopter
+// and the crowd stand, and what the HUD should say. main.js applies
+// it; nothing here touches the DOM or the renderer, so the staging
+// stays testable on its own.
 export function getShotSetup(shot) {
   if (shot === 'start') {
     return {
@@ -28,9 +28,9 @@ export function getShotSetup(shot) {
     };
   }
   if (shot === 'chase') {
-    // On the bridge deck, heading south toward Gull Island: open sky and
-    // water on both sides, no building canyon, police in frame behind,
-    // helicopter overhead with its searchlight on the car.
+    // On the bridge deck, heading south toward Gull Island: open sky
+    // and water on both sides, no building canyon, police in frame
+    // behind, helicopter overhead with its searchlight on the car.
     return {
       mode: 'chase',
       camera: { dist: 24, height: 10, lookAhead: 26 },
@@ -50,9 +50,9 @@ export function getShotSetup(shot) {
     };
   }
   if (shot === 'play') {
-    // Neon Row, east side: Mara on foot on the 120 road facing north up
-    // the neon strip, crowd around her, signs lit. The camera sits on
-    // the road itself, never inside a building.
+    // Neon Row, east side: Mara on foot on the 120 road facing north
+    // up the neon strip, crowd around her, signs lit. The camera sits
+    // on the road itself, never inside a building.
     return {
       mode: 'play',
       camera: { dist: 10.5, height: 5.2, lookAhead: 5 },
@@ -70,23 +70,30 @@ export function getShotSetup(shot) {
     };
   }
   if (shot === 'end') {
-    // Gull Island dock, Mara facing north toward the camera with the
-    // city skyline and the bridge behind her; the boat sits to her left,
-    // never between her and the camera.
+    // Night Shift, the Round 4 system: full night, Mara in the Night
+    // Courier Van on the 120 road in Neon Row, a courier job live —
+    // cyan marker at the Starfish Casino, job HUD showing the timer,
+    // payout and streak. The camera looks north up the lit strip.
     return {
-      mode: 'end',
-      camera: { x: 8, y: 5.5, z: 318, lookX: 8, lookY: 2, lookZ: 296 },
-      player: { x: 8, z: 296, heading: 0 },
-      missionIndex: 5, stepIndex: 0, cash: 40000, wanted: 0,
-      banner: { title: 'MISSION COMPLETE', text: '5. ONE LAST DRIVE \u2014 +$40,000' },
+      mode: 'night',
+      camera: { dist: 15, height: 7, lookAhead: 14 },
+      playerCar: { x: 120, z: 46, heading: Math.PI, speed: 0 },
+      missionIndex: 6, stepIndex: 0, cash: 12480, wanted: 0,
+      dusk: 1,
+      job: {
+        phase: 'pickup', spot: 'STARFISH CASINO', x: 120, z: -40,
+        dest: 'PALM COURT', dx: -120, dz: 120,
+        payout: 1480, timer: 87, streak: 3, jobsDone: 7, nightScore: 9630,
+      },
+      banner: { title: 'NIGHT SHIFT', text: 'Courier job 8 \u2014 Starfish Casino \u2192 Palm Court \u00b7 $1,480 \u00b7 streak 3' },
       showStartOverlay: false,
     };
   }
   return null;
 }
 
-// Applies a staging plan to the live world. Kept in this file so main.js
-// never has to know where a shot puts anything.
+// Applies a staging plan to the live world. Kept in this file so
+// main.js never has to know where a shot puts anything.
 export function applyShotSetup(setup, ctx) {
   const { state, player, world, camera, pickRng } = ctx;
   state.started = true;
@@ -142,13 +149,34 @@ export function applyShotSetup(setup, ctx) {
     });
     return;
   }
-  if (setup.mode === 'end') {
-    player.x = setup.player.x;
-    player.z = setup.player.z;
-    player.heading = setup.player.heading;
-    player.mesh.position.set(player.x, 0, player.z);
-    camera.position.set(setup.camera.x, setup.camera.y, setup.camera.z);
-    camera.lookAt(setup.camera.lookX, setup.camera.lookY, setup.camera.lookZ);
+  if (setup.mode === 'night') {
+    // Night Shift staging: Mara in the teal Night Courier Van, a live
+    // courier job with its cyan marker at the pickup, full night.
+    state.nightShift = true;
+    state.time = NIGHT_HOUR;
+    state.nightScore = setup.job.nightScore;
+    state.jobsDone = setup.job.jobsDone;
+    state.streak = setup.job.streak;
+    const van = world.parked.find((p) => p.name === 'Night Courier Van');
+    if (van) ctx.enterCarSilent(van);
+    else {
+      const pk = world.parked.find((p) => !p.stolen);
+      if (pk) ctx.enterCarSilent(pk);
+    }
+    state.car.mesh.position.set(setup.playerCar.x, 0, setup.playerCar.z);
+    state.car.heading = setup.playerCar.heading;
+    state.car.speed = setup.playerCar.speed;
+    state.speed = 0;
+    state.job = {
+      active: true,
+      phase: setup.job.phase,
+      spot: setup.job.spot,
+      x: setup.job.x, z: setup.job.z,
+      dest: setup.job.dest, dx: setup.job.dx, dz: setup.job.dz,
+      payout: setup.job.payout, timer: setup.job.timer,
+      streak: setup.job.streak,
+    };
+    ctx.placeJobMarker(setup.job.x, setup.job.z);
     return;
   }
 }

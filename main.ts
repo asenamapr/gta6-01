@@ -1,5 +1,5 @@
 // SOLARA BAY: One Last Drive — make.fun gta6-01 entry packager.
-// Round 3 rewrite. Node 22, standard library only. The entry is the
+// Round 4 rewrite. Node 22, standard library only. The entry is the
 // static game under game/ (index.html plus ES modules under game/src/,
 // with vendored three.js, playable offline) and the four screenshots in
 // screenshots/. This program copies both into the output directory and
@@ -42,10 +42,11 @@ for (const name of SHOT_NAMES) {
 const shotFiles = readdirSync(join(out, 'screenshots')).filter((f) => f.endsWith('.jpg'));
 if (shotFiles.length !== 4) throw new Error('expected 4 screenshots, found ' + shotFiles.length);
 
-// The scorer's own caps (reference/gate.json): only text_max_bytes shapes
-// the bytes; the others refuse an entry the scorer would refuse — more
-// than 4 screenshots or one over 256 KiB; more than 993 files in game/
-// or 48 MiB of game files in all, or a path under game/ over 1000 bytes.
+// The scorer's own caps (reference/gate.json): only text_max_bytes
+// shapes the bytes; the others refuse an entry the scorer would
+// refuse — more than 4 screenshots or one over 256 KiB; more than 993
+// files in game/ or 48 MiB of game files in all, or a path under game/
+// over 1000 bytes.
 writeFileSync(
   join(out, 'dossier.json'),
   buildDossier(out, {

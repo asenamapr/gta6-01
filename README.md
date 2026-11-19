@@ -51,9 +51,19 @@ pause buttons appear. Desktop play is untouched by them.
 - **Six missions** — the meet, the courier car, the bridge toll,
   Danny's pickup, the bank heist with its pay-or-keep choice, and the
   night epilogue chase "The Long Way Home" across the harbor bridge.
+- **Night Shift free-roam (new)** — finish mission 6 and the city
+  stays in full night, neon and streetlights on everywhere. A courier
+  job system runs: pickup markers spawn across ten named spots
+  (Starfish Casino, Palm Court, Gull Island Dock…), each job has a
+  timer and a payout in the in-game economy, jobs chain (finish one,
+  the next spawns), a job HUD shows timer + payout + streak, and a
+  night score accumulates. Miss a timer and that job's payout is lost
+  and the streak resets — but the shift goes on. The Night Courier Van
+  waits by the Neon Row gate.
 - **Neon Row** — a casino strip on the east side. As dusk deepens, the
   sun drops, the fog darkens, and the neon signs and street lamps take
-  over. The minimap marks the strip in magenta.
+  over. The minimap marks the strip in magenta and courier jobs in
+  cyan.
 - **Wanted 0–5 stars** — police cars chase, ram and flash their light
   bars; at 4–5 stars a police helicopter joins in, circling overhead
   with a sweeping searchlight and rotor audio. Lay low and the heat
@@ -64,11 +74,13 @@ pause buttons appear. Desktop play is untouched by them.
 - **Damage you can see** — hard hits throw up smoke from the car,
   handbrake turns leave skid marks on the asphalt, and shot police
   cars smoke too.
-- **A living HUD** — health, cash, wanted stars, mission tracker, live
-  circular minimap (traffic, police, helicopter, Danny, waypoint),
-  clock, speedometer and radio station.
-- **Save** — progress saves to the browser automatically; a hospital
-  trip after going down costs $500.
+- **A living HUD** — health, cash, wanted stars, mission tracker,
+  Night Shift job panel, live circular minimap (traffic, police,
+  helicopter, Danny, waypoint, courier job), clock, speedometer and
+  radio station.
+- **Save** — progress saves to the browser automatically, including
+  Night Shift state; a finished save reopens straight into the shift.
+  A hospital trip after going down costs $500.
 - **Sound** — WebAudio synth: engine hum, sirens, gunshots, cash
   chimes and a four-chord moody radio loop. Nothing is downloaded.
 
@@ -82,8 +94,8 @@ Four renders of the game's own code, staged deterministically:
    (`?shot=chase&seed=1`)
 3. `3-street.jpg` — on foot in Neon Row as the signs light up, touch
    controls visible (`?shot=play&seed=1&touch=1`)
-4. `4-heist.jpg` — the heist moment on Gull Island, boat + $40,000
-   (`?shot=end&seed=1`)
+4. `4-heist.jpg` — Night Shift: courier job in Neon Row at night,
+   job HUD + cyan marker (`?shot=end&seed=1`)
 
 ## Layout
 
@@ -93,16 +105,17 @@ main.ts            entry packager — copies game/ + screenshots/ to
 serve.ts           tiny static server for local playtesting
 shots.json         the four screenshot queries above
 game/
-  index.html       HUD, overlays, touch controls
+  index.html       HUD, overlays, Night Shift job panel, touch controls
   src/
-    config.js      tuning, palettes, traffic mix, six missions
+    config.js      tuning, palettes, traffic mix, six missions,
+                   Night Shift spots + payout/timer tuning
     world.js       city, Neon Row, bridge, vehicles, pedestrians,
-                   helicopter, pickups, waypoint beacon
-    render.js      golden-hour sky, lights, dusk control, chase
-                   camera, live minimap
+                   helicopter, pickups, waypoint + courier markers
+    render.js      golden-hour sky, lights, dusk control, moon fill,
+                   chase camera, live minimap (incl. job marker)
     shots.js       deterministic screenshot staging
     main.js        game loop: driving, combat, police, helicopter,
-                   missions, HUD, save, audio
+                   missions, Night Shift jobs, HUD, save, audio
   vendor/
     three.min.js   vendored three.js r152
 vendor/

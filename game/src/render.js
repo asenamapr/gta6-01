@@ -1,8 +1,12 @@
 // SOLARA BAY — renderer, golden-hour sky, lights, chase camera, minimap.
-// Round 3 rewrite. The palette is the user's direction and does not move:
-// low sun near 5 degrees, orange-pink-teal gradient, long warm shadows.
-// New: setDusk(f) deepens the evening as the clock runs — the sun drops,
-// the fog darkens, and the street lamps and neon signs take over.
+// Round 4 rewrite. The palette is the user's direction and does not
+// move: low sun near 5 degrees, orange-pink-teal gradient, long warm
+// shadows. setDusk(f) deepens the evening as the clock runs — the sun
+// drops, the fog darkens, and the street lamps and neon signs take
+// over; at f = 1 (Night Shift) the city is fully lit by neon and lamps.
+// New in this round: the minimap draws the active courier job as a
+// cyan diamond, and the camera rig gains a slow orbit for the title
+// screen so the cover shot breathes.
 'use strict';
 
 import { GRID, TAU, clamp, lerp, angDiff } from './config.js';
@@ -16,6 +20,8 @@ export function setupRenderer(canvas) {
   return renderer;
 }
 
+// A 4x256 gradient painted once and used as the sky background: teal
+// at the top, pink mid-sky, orange at the horizon.
 function skyTexture() {
   const cv = document.createElement('canvas');
   cv.width = 4; cv.height = 256;
@@ -68,14 +74,20 @@ export function setupScene() {
   sun.shadow.camera.far = 700;
   scene.add(sun);
 
+  // A faint cool moon fill so night is readable, not pitch black.
+  const moon = new THREE.DirectionalLight(0x8fb8ff, 0);
+  moon.position.set(180, 220, 120);
+  scene.add(moon);
+
   const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 1200);
   camera.position.set(40, 26, 120);
 
   // f = 0 is golden hour, f = 1 is full night. Called every frame from
-  // the game loop with the clock's dusk factor.
+  // the game loop with the clock's dusk factor. The moon fill and the
+  // neon/lamp glow only come up as the sun goes down.
   let dusk = -1;
   const fogDay = new THREE.Color(0xef9a68);
-  const fogNight = new THREE.Color(0x1a2440);
+  const fogNight = new THREE.Color(0x141c33);
   function setDusk(f, neonMeshes, lampGlows) {
     f = clamp(f, 0, 1);
     if (Math.abs(f - dusk) < 0.01 && dusk >= 0) return;
@@ -85,6 +97,7 @@ export function setupScene() {
     sun.intensity = lerp(2.0, 0.25, f);
     sun.position.set(-300, lerp(78, 18, f), -190);
     sunDisc.material.opacity = lerp(1, 0.12, f);
+    moon.intensity = lerp(0, 0.5, f);
     if (neonMeshes) for (const m of neonMeshes) m.material.emissiveIntensity = lerp(0.35, 2.4, f);
     if (lampGlows) for (const b of lampGlows) b.material.emissiveIntensity = lerp(0.25, 2.2, f);
   }
@@ -93,6 +106,7 @@ export function setupScene() {
 
 // Chase camera rebuilt from the car every tick, so a screenshot always
 // shows the car, the road ahead and the police behind it — never a wall.
+// orbit() is the slow title-screen drift around the skyline.
 export function makeCameraRig(camera) {
   let heading = 0;
   function follow(dt, pos, targetHeading, inCar, speed, playerHeading, moving) {
@@ -129,16 +143,22 @@ export function makeCameraRig(camera) {
     camera.position.set(x, y, z);
     camera.lookAt(lx, ly, lz);
   }
+  function orbit(t, cx, cz, radius, height) {
+    const a = t * 0.05;
+    camera.position.set(cx + Math.sin(a) * radius, height, cz + Math.cos(a) * radius);
+    camera.lookAt(cx, 24, cz - 60);
+  }
   return {
     get heading() { return heading; },
     set heading(v) { heading = v; },
-    follow, snapTo, place,
+    follow, snapTo, place, orbit,
   };
 }
 
 // Live minimap: bay, land, beach, bridge, island, buildings, roads,
-// traffic dots, police dots, Danny, the pulsing waypoint and the player
-// arrow. Neon Row shows as a magenta block so the strip reads on the map.
+// traffic dots, police dots, Danny, the pulsing waypoint, the courier
+// job marker (cyan diamond) and the player arrow. Neon Row shows as a
+// magenta block so the strip reads on the map.
 export function drawMinimap(ctx, data) {
   const S = 200, scale = S / 560;
   const toMap = (x, z) => [100 + (x + 30) * scale, 100 + (z + 20) * scale];
@@ -188,6 +208,18 @@ export function drawMinimap(ctx, data) {
     const [x, y] = toMap(-120, 120);
     ctx.fillStyle = '#ffd34d';
     ctx.beginPath(); ctx.arc(x, y, 3.5, 0, TAU); ctx.fill();
+  }
+  if (data.job) {
+    // Courier job: cyan diamond, pulsing, drawn under the waypoint so
+    // both read at once when a job and a mission target coexist.
+    const [x, y] = toMap(data.job.x, data.job.z);
+    const r = 5 + Math.sin(data.elapsed * 5) * 1.6;
+    ctx.fillStyle = '#2ee8ff';
+    ctx.beginPath();
+    ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(x, y, r + 3, 0, TAU); ctx.stroke();
   }
   if (data.waypoint) {
     const [x, y] = toMap(data.waypoint.x, data.waypoint.z);

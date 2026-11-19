@@ -25,6 +25,14 @@
   #mission h3 { margin: 0 0 3px; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; color: #ff9d86; }
   #mission p { margin: 0; font-size: 15px; line-height: 1.4; }
   #mission .obj { color: #d8f6f2; }
+  /* Night Shift job panel: cyan edge, sits under the mission card.
+     Hidden until the shift unlocks after mission 6. */
+  #job { top: 236px; left: 14px; width: 330px; padding: 10px 12px; border-radius: 0 10px 10px 0;
+    background: rgba(6,28,42,.85); border-left: 5px solid #2ee8ff; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
+  #job h3 { margin: 0 0 3px; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; color: #2ee8ff; }
+  #job p { margin: 0; font-size: 15px; line-height: 1.4; color: #d8f6f2; }
+  #job.urgent { border-left-color: #ff5c5c; }
+  #job.urgent h3 { color: #ff8d8d; }
   #mapwrap { top: 14px; right: 14px; width: 200px; height: 200px; overflow: hidden;
     border: 3px solid rgba(255,255,255,.85); border-radius: 50%; background: #123a44;
     box-shadow: 0 3px 14px rgba(0,0,0,.6); }
@@ -91,6 +99,11 @@
   <div id="stars"></div>
   <div id="mission"><h3 id="mtitle">SOLARA BAY</h3><p class="obj" id="mobj">Loading the bay…</p></div>
 </div>
+<div class="hud" id="job" style="display:none">
+  <h3 id="jobtitle">NIGHT SHIFT — COURIER</h3>
+  <p id="jobline1"></p>
+  <p id="jobline2"></p>
+</div>
 <div class="hud" id="mapwrap"><canvas id="map" width="200" height="200"></canvas></div>
 <div class="hud" id="clock">SOLARA BAY &nbsp;·&nbsp; <span id="clocktime">18:42</span> &nbsp;·&nbsp; <span id="wantedlabel">CLEAN</span></div>
 <div class="hud" id="speedo"><b id="speed">0</b> mph<br><span id="vehname">ON FOOT</span></div>
@@ -106,11 +119,13 @@
   <p class="story">Mara “Reef” Calloway, ex-getaway driver. Her brother Danny owes the Vega
     family $40,000 — and the bay always collects. Six nights across a golden-hour
     Gulf-coast city: steal cars, outrun the police helicopter, light up Neon Row,
-    and bring him home. Buy him out, or lose him to the tide.</p>
+    and bring him home. Buy him out, or lose him to the tide. Finish all six jobs
+    and the Night Shift unlocks: courier runs through the neon night, chained jobs,
+    streaks and a night score.</p>
   <button class="go" id="startBtn">▶ &nbsp;START THE ENGINE</button>
   <div class="keys">WASD drive / walk &nbsp;·&nbsp; E enter &amp; steal car &nbsp;·&nbsp; F punch &nbsp;·&nbsp; Click shoot (pistol)
     &nbsp;·&nbsp; SPACE handbrake &nbsp;·&nbsp; R radio &nbsp;·&nbsp; P pause &nbsp;·&nbsp; M mute<br>
-    6 missions · wanted level 0–5 stars · traffic, pedestrians, police, helicopter · progress saves automatically</div>
+    6 missions · wanted level 0–5 stars · traffic, pedestrians, police, helicopter · Night Shift courier jobs after mission 6 · progress saves automatically</div>
 </div>
 
 <div class="overlay" id="pause">
