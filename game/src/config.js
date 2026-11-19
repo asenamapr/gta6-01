@@ -10,7 +10,7 @@
 export const HALF = 200;        // city half-extent along x
 export const SHORE = 180;       // land ends here; the bay begins
 export const GRID = [-160, -120, -80, -40, 0, 40, 80, 120, 160];
-export const SAVE_KEY = 'solara-bay-save-v3';
+export const SAVE_KEY = 'solara-bay-save-v4';
 export const TAU = Math.PI * 2;
 
 // The sun sits near 5 degrees above the horizon at 18:42; every hour
@@ -153,6 +153,85 @@ export const MISSIONS = [
     reward: 10000,
   },
 ];
+
+// ------------------------------------------------------------------
+// PORT SOLARA — THE DOCKS (Round 5). A working port on the east edge
+// of the bay, past the beach: pier deck over the water, container
+// yard, gantry cranes, warehouses. Mara's second act plays here —
+// the smuggling run of mission 7 and the Danny pickup of mission 8 —
+// and one of the three buyable businesses lives in Warehouse 7.
+// ------------------------------------------------------------------
+export const DOCKS = {
+  name: 'PORT SOLARA', x0: 168, x1: 212, z0: 196, z1: 322,
+  gateX: 186, gateZ: 196, pierX: 186, pierZ: 262,
+};
+export const DOCK_SPOTS = [
+  { name: 'DOCKS GATE', x: 186, z: 196 },
+  { name: 'WAREHOUSE 7', x: 186, z: 224 },
+  { name: 'CRANE ROW', x: 198, z: 262 },
+  { name: 'CONTAINER ROW', x: 176, z: 258 },
+  { name: 'PIER END', x: 186, z: 312 },
+];
+
+// ------------------------------------------------------------------
+// BUSINESSES (Round 5) — property ownership. Three buyable fronts,
+// each with a purchase cost, a passive income per in-game day, and
+// three upgrade tiers that multiply the income. A business pays into
+// an uncollected pot; Mara collects it (B key, anywhere, or E at the
+// door). Owning one paints a gold marker on the minimap and, sooner
+// or later, brings a Vega crew to the door — see BIZ_DEFENSE.
+// One in-game day lasts BIZ_DAY_SECONDS of real play time.
+// ------------------------------------------------------------------
+export const BIZ_DAY_SECONDS = 120;
+export const BUSINESS_DEFS = [
+  {
+    id: 'velvet', name: 'THE VELVET REEF', short: 'VELVET REEF', kind: 'casino',
+    x: 100, z: -44, cost: 8000, income: 900,
+    blurb: 'Neon Row casino. The house always wins — now the house is you.',
+    upgrades: [
+      { name: 'High-Roller Room', cost: 4000, mult: 1.5, blurb: 'Whales only. Velvet ropes, bigger pots.' },
+      { name: 'VIP Lounge', cost: 9000, mult: 2.2, blurb: 'Back room, top shelf, no questions asked.' },
+      { name: 'House Edge', cost: 16000, mult: 3.1, blurb: 'The tables are tuned. The bay pays you to exist.' },
+    ],
+  },
+  {
+    id: 'warehouse', name: 'DOCKS WAREHOUSE 7', short: 'WAREHOUSE 7', kind: 'warehouse',
+    x: 186, z: 224, cost: 12000, income: 1400,
+    blurb: 'Port Solara storage. Crates in, crates out — some of them yours.',
+    upgrades: [
+      { name: 'Second Shift', cost: 6000, mult: 1.5, blurb: 'Forklifts run all night. The yard never sleeps.' },
+      { name: 'Cold Storage', cost: 12000, mult: 2.2, blurb: 'Reefers for the goods that need to stay quiet.' },
+      { name: 'Private Berth', cost: 20000, mult: 3.1, blurb: 'Your own slip. Boats come and go without a manifest.' },
+    ],
+  },
+  {
+    id: 'salt', name: 'SALT & SMOKE', short: 'SALT & SMOKE', kind: 'bar',
+    x: -128, z: 170, cost: 5000, income: 600,
+    blurb: 'Beach bar on the sand. Fishermen, drivers and Vega boys all drink here.',
+    upgrades: [
+      { name: 'Live Nights', cost: 2500, mult: 1.5, blurb: 'A band on Fridays. The whole beach shows up.' },
+      { name: 'Rooftop Deck', cost: 6000, mult: 2.2, blurb: 'Sunset tables over the water. Cocktails at dusk prices.' },
+      { name: 'Back-Room Book', cost: 11000, mult: 3.1, blurb: 'The quiet ledger. The bar pays twice — once clean.' },
+    ],
+  },
+];
+
+// Rival takeover-defense events. Owning a business invites Vega to
+// test you: a crew shows up at the door and you have a window to get
+// there and run them off. Arrive in time and the crew pays you off;
+// miss the window and they skim the uncollected pot.
+export const BIZ_DEFENSE = {
+  windowSeconds: 45,
+  winBonus: 500,
+  skimFraction: 0.5,
+  minOwnedForEvent: 1,
+  cooldownSeconds: 240,
+  events: [
+    { id: 'shakedown', title: 'VEGA SHAKEDOWN', text: 'Vega boys are leaning on your staff for protection money.' },
+    { id: 'turf', title: 'TURF CHALLENGE', text: 'A rival crew is moving crates through YOUR yard.' },
+    { id: 'torch', title: 'TORCH THREAT', text: 'Someone parked a fuel drum by your back door. Go look.' },
+  ],
+};
 
 export function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 export function lerp(a, b, t) { return a + (b - a) * t; }

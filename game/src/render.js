@@ -174,6 +174,33 @@ export function drawMinimap(ctx, data) {
   ctx.fillRect(toMap(-9, 180)[0], toMap(0, 180)[1], 18 * scale, 115 * scale);
   ctx.fillStyle = '#e8cf9e';
   ctx.fillRect(toMap(-45, 270)[0], toMap(0, 270)[1], 90 * scale, 60 * scale);
+  // Port Solara: the pier deck jutting into the bay on the east edge,
+  // container stacks as orange blocks, gantry cranes as gold crosses,
+  // so the docks read as a district of their own, not empty water.
+  if (data.docks) {
+    const [dx0, dz0] = toMap(168, 196);
+    ctx.fillStyle = '#8a8f96';
+    ctx.fillRect(dx0, dz0, 44 * scale, 126 * scale);
+    ctx.fillStyle = '#b84a2e';
+    for (const c of data.docks.containers || []) {
+      const [cx, cz] = toMap(c.x - 3, c.z - 1.3);
+      ctx.fillRect(cx, cz, Math.max(2, 6 * scale), Math.max(2, 2.6 * scale));
+    }
+    ctx.strokeStyle = '#ffd34d';
+    ctx.lineWidth = 1.5;
+    for (const cr of data.docks.cranes || []) {
+      const [cx, cz] = toMap(cr.x, cr.z);
+      ctx.beginPath();
+      ctx.moveTo(cx - 5, cz); ctx.lineTo(cx + 5, cz);
+      ctx.moveTo(cx, cz - 5); ctx.lineTo(cx, cz + 5);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#ffd34d';
+    for (const s of data.docks.spots || []) {
+      const [sx, sz] = toMap(s.x, s.z);
+      ctx.fillRect(sx - 1, sz - 1, 2, 2);
+    }
+  }
   for (const b of data.buildings) {
     const [bx, bz] = toMap(b.x - b.w / 2, b.z - b.d / 2);
     ctx.fillStyle = b.neon ? '#ff2e88' : '#2e3438';
@@ -228,6 +255,41 @@ export function drawMinimap(ctx, data) {
     ctx.beginPath();
     ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y);
     ctx.closePath(); ctx.fill();
+  }
+  // Businesses: owned fronts are solid gold diamonds with a $,
+  // unowned ones for sale are hollow gold diamonds. A defense event
+  // draws a red pulsing ring around the business under attack.
+  if (data.businesses) {
+    ctx.font = 'bold 8px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const b of data.businesses) {
+      const [x, y] = toMap(b.x, b.z);
+      ctx.beginPath();
+      ctx.moveTo(x, y - 6); ctx.lineTo(x + 6, y); ctx.lineTo(x, y + 6); ctx.lineTo(x - 6, y);
+      ctx.closePath();
+      if (b.owned) {
+        ctx.fillStyle = '#ffd34d';
+        ctx.fill();
+        ctx.fillStyle = '#04241c';
+        ctx.fillText('$', x, y + 0.5);
+      } else {
+        ctx.strokeStyle = '#ffd34d';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+  }
+  if (data.defense) {
+    const [x, y] = toMap(data.defense.x, data.defense.z);
+    const r = 9 + Math.sin(data.elapsed * 6) * 3;
+    ctx.strokeStyle = '#ff4040';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
+    ctx.fillStyle = '#ff4040';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('!', x, y - r - 4);
   }
   const [px, py] = toMap(data.player.x, data.player.z);
   ctx.fillStyle = '#ff5c5c';

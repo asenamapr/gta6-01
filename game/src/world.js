@@ -10,7 +10,7 @@
 
 import {
   HALF, SHORE, GRID, TAU, DENSITY, PASTEL, PAINT, CAR_NAMES, SHIRTS,
-  SKINS, HAIR, NEON, VEHICLE_KINDS, VEHICLE_STATS, NEON_ROW, pick, chance,
+  SKINS, HAIR, NEON, VEHICLE_KINDS, VEHICLE_STATS, NEON_ROW, DOCKS, DOCK_SPOTS, pick, chance,
 } from './config.js';
 
 export function buildWorld(scene, rng) {
@@ -300,6 +300,209 @@ export function buildWorld(scene, rng) {
     lhTop.position.set(-28, 24, 288); root.add(lhTop);
   }
 
+  // ---------- Port Solara / The Docks (Round 5) ----------
+  // A working port on the east edge of the bay, past the beach: a
+  // pier deck over the water, a container yard, two gantry cranes,
+  // three warehouses (one of them buyable — Warehouse 7), dockworker
+  // peds in hi-vis, forklifts, and the Dock Hauler truck mission 7
+  // needs. A causeway joins the pier to the beach so cars can drive
+  // in through the gate at (186, 196). The smuggling crates glow
+  // gold at the mission-7 spots so the run reads at a glance.
+  const docks = { spots: DOCK_SPOTS, workers: [], crates: [], forklifts: [] };
+  {
+    // Causeway from the beach to the pier gate, then the pier deck.
+    solid(16, 0.3, 26, 0x8a8f96, DOCKS.gateX, -0.05, 188, null, true);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(44, 0.3, 126), paint(0x7d8478));
+    deck.position.set(190, -0.05, 259); deck.receiveShadow = true; root.add(deck);
+    // Pier edge fenders — rust-red blocks along both sides.
+    for (let z = 200; z <= 318; z += 14) {
+      solid(1.2, 1, 2.4, 0x8a4a3a, 168.6, 0.4, z, null, true);
+      solid(1.2, 1, 2.4, 0x8a4a3a, 211.4, 0.4, z, null, true);
+    }
+    // Bollards along the water edge.
+    for (let z = 204; z <= 316; z += 28) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.1, 8), paint(0xffd34d));
+      b.position.set(210.4, 0.55, z); b.castShadow = true; root.add(b);
+    }
+    // Warehouses: 7 is the big one mid-pier (buyable), A north, B by the gate.
+    const wh7 = solid(30, 11, 22, 0x4a6a7a, 186, 5.5, 244);
+    solid(31, 1, 23, 0x2a3f4a, 186, 11.4, 244);
+    solid(12, 5, 0.6, 0x22303a, 186, 2.5, 232.6);
+    const sign7 = solid(16, 2.4, 0.6, 0xffd34d, 186, 9, 232.6, { emissive: 0xffd34d, emissiveIntensity: 1.1 });
+    neonMeshes.push(sign7);
+    block(186, 244, 16, 12);
+    facades.push({ x: 186, z: 244, w: 30, d: 22, h: 11, docks: true });
+    solid(24, 9, 18, 0x7a5a4a, 178, 4.5, 292);
+    solid(25, 1, 19, 0x3a2a2a, 178, 9.4, 292);
+    solid(9, 4.4, 0.6, 0x22303a, 178, 2.2, 282.6);
+    block(178, 292, 13, 10);
+    facades.push({ x: 178, z: 292, w: 24, d: 18, h: 9, docks: true });
+    solid(20, 8, 16, 0x5a6a5a, 200, 4, 206);
+    solid(21, 1, 17, 0x2a3a2a, 200, 8.4, 206);
+    solid(8, 4, 0.6, 0x22303a, 200, 2, 197.6);
+    block(200, 206, 11, 9);
+    facades.push({ x: 200, z: 206, w: 20, d: 16, h: 8, docks: true });
+    // Container yard: two rows of stacked boxes in port colours.
+    const contColors = [0xb84a2e, 0x2a7a8a, 0xc8a02e, 0x3a4a6a, 0x7a8a3a, 0x8a3a4a];
+    function containerStack(x, z, levels) {
+      for (let l = 0; l < levels; l++) {
+        const c = solid(6, 2.6, 2.6, pick(rng, contColors), x, 1.3 + l * 2.6, z);
+        c.rotation.y = (rng() - 0.5) * 0.06;
+      }
+      block(x, z, 3.4, 1.7);
+      facades.push({ x, z, w: 6, d: 2.6, h: 2.6 * levels, docks: true });
+    }
+    containerStack(174, 258, 3);
+    containerStack(174, 266, 2);
+    containerStack(174, 274, 3);
+    containerStack(180, 262, 1);
+    containerStack(204, 272, 2);
+    containerStack(204, 280, 3);
+    containerStack(204, 288, 1);
+    containerStack(176, 306, 2);
+    containerStack(196, 312, 2);
+    // Gantry cranes: four legs, a top beam spanning the pier, a
+    // trolley and a hanging cable with a container on the hook.
+    function gantryCrane(x, z) {
+      const legMat = paint(0xffd34d);
+      for (const [lx, lz] of [[-15, -4], [15, -4], [-15, 4], [15, 4]]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(1.4, 22, 1.4), legMat);
+        leg.position.set(x + lx, 11, z + lz); leg.castShadow = true; root.add(leg);
+      }
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(36, 2, 3), legMat);
+      beam.position.set(x, 22.5, z); beam.castShadow = true; root.add(beam);
+      const top = new THREE.Mesh(new THREE.BoxGeometry(36, 1, 1.2), paint(0x2a3f4a));
+      top.position.set(x, 24, z); root.add(top);
+      const trolley = new THREE.Mesh(new THREE.BoxGeometry(3, 1.6, 2.6), paint(0x22303a));
+      trolley.position.set(x + 6, 21, z); root.add(trolley);
+      const cable = new THREE.Mesh(new THREE.BoxGeometry(0.18, 12, 0.18), paint(0x111111));
+      cable.position.set(x + 6, 14, z); root.add(cable);
+      const hookBox = new THREE.Mesh(new THREE.BoxGeometry(5, 2.2, 2.4), paint(0xb84a2e));
+      hookBox.position.set(x + 6, 7.4, z); hookBox.castShadow = true; root.add(hookBox);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 6),
+        paint(0xffe9a8, { emissive: 0xffd34d, emissiveIntensity: 1.4 }));
+      lamp.position.set(x, 21, z + 2); root.add(lamp);
+      lampGlows.push(lamp);
+      block(x - 15, z, 1.2, 4.5);
+      block(x + 15, z, 1.2, 4.5);
+    }
+    gantryCrane(190, 262);
+    gantryCrane(190, 300);
+    // Forklifts parked by the container rows — small, yellow, with
+    // a mast and forks, so the yard reads as worked, not abandoned.
+    function forklift(x, z, heading) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1, 2.4), paint(0xffd34d));
+      body.position.y = 0.7; body.castShadow = true; g.add(body);
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1, 1.2), paint(0x22303a));
+      cab.position.set(0, 1.6, -0.3); g.add(cab);
+      const mast = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.6, 0.2), paint(0x2e3438));
+      mast.position.set(0, 1.5, 1.25); g.add(mast);
+      const forkL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 1.4), paint(0x8a8f96));
+      forkL.position.set(-0.5, 0.15, 1.9); g.add(forkL);
+      const forkR = forkL.clone(); forkR.position.x = 0.5; g.add(forkR);
+      const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.3, 8);
+      const wheelMat = paint(0x14181c);
+      for (const [wx, wz] of [[-0.8, 0.8], [0.8, 0.8], [-0.8, -0.8], [0.8, -0.8]]) {
+        const w = new THREE.Mesh(wheelGeo, wheelMat);
+        w.rotation.z = Math.PI / 2; w.position.set(wx, 0.35, wz); g.add(w);
+      }
+      g.position.set(x, 0, z);
+      g.rotation.y = heading;
+      scene.add(g);
+      docks.forklifts.push(g);
+      return g;
+    }
+    forklift(182, 268, 0.4);
+    forklift(198, 276, -0.6);
+    forklift(184, 296, 2.2);
+    // Dockworker peds in hi-vis: standing posts, not wanderers —
+    // the yard is fenced and the update loop clamps walkers to the
+    // city grid, so standing workers stay exactly where staged.
+    const hiVis = [0xffd34d, 0xff7a2e, 0x7dff5c, 0x2ee8ff];
+    const posts = [
+      [176, 250], [192, 258], [200, 292], [178, 284],
+      [186, 216], [206, 262], [172, 302], [196, 318],
+    ];
+    for (const [wx, wz] of posts) {
+      const mesh = makeWalker(wx, wz, pick(rng, hiVis));
+      walkers.push({ mesh, x: wx, z: wz, heading: rng() * TAU, speed: 0, down: false, downT: 0, dock: true });
+      docks.workers.push(mesh);
+    }
+    // Smuggling crates: gold-glowing stacks at the mission-7 spots,
+    // so the run's pickups read at a glance even at night.
+    for (const spot of DOCK_SPOTS) {
+      if (spot.name === 'DOCKS GATE') continue;
+      const g = new THREE.Group();
+      const crate = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.6, 2.2), paint(0x8a6a4d));
+      crate.position.y = 0.8; crate.castShadow = true; g.add(crate);
+      const glow = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 2.4),
+        paint(0xffd34d, { emissive: 0xffd34d, emissiveIntensity: 1.6 }));
+      glow.position.y = 1.75; g.add(glow);
+      const crate2 = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 1.6), paint(0x6a4a3a));
+      crate2.position.set(1.8, 0.6, 0.6); crate2.castShadow = true; g.add(crate2);
+      g.position.set(spot.x, 0, spot.z);
+      scene.add(g);
+      docks.crates.push(g);
+    }
+    // Dock floodlight poles — tall, so the yard is readable at night
+    // when Act II plays in full dark.
+    for (const [fx, fz] of [[172, 210], [208, 240], [172, 280], [208, 310]]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 14, 5), paint(0x2e3438));
+      pole.position.set(fx, 7, fz); root.add(pole);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1, 1), paint(0xffe9a8, { emissive: 0xffd34d, emissiveIntensity: 1.6 }));
+      head.position.set(fx, 14.2, fz); root.add(head);
+      lampGlows.push(head);
+    }
+    // Moored boats at the pier end — small workboats tied up where
+    // the pier meets the water, so the docks feel used, not staged.
+    // They sit just off the deck edge, hulls in the water.
+    function mooredBoat(x, z, heading, color) {
+      const g = new THREE.Group();
+      const hull = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.6, 8), paint(color));
+      hull.position.y = 0.4; hull.castShadow = true; g.add(hull);
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.4, 3), paint(0xf2f0e4));
+      cab.position.set(0, 1.7, -1); g.add(cab);
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4, 5), paint(0x2e3438));
+      mast.position.set(0, 3.4, 1.5); g.add(mast);
+      const rope = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 3), paint(0x8a6a4d));
+      rope.position.set(1.4, 0.6, -4.5); rope.rotation.x = 0.5; g.add(rope);
+      g.position.set(x, -0.2, z);
+      g.rotation.y = heading;
+      scene.add(g);
+      return g;
+    }
+    mooredBoat(214, 292, 0.3, 0x2a9d8f);
+    mooredBoat(214, 306, -0.2, 0xff7a5c);
+    mooredBoat(166, 300, 2.8, 0xffd34d);
+    // Fuel tank by Warehouse A — a rust-red cylinder with a hazard
+    // band, the reason the TORCH THREAT defense event exists.
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 7, 12), paint(0x8a3a2a));
+    tank.position.set(206, 3.5, 316); tank.castShadow = true; root.add(tank);
+    const tankBand = new THREE.Mesh(new THREE.CylinderGeometry(4.05, 4.05, 1, 12), paint(0xffd34d));
+    tankBand.position.set(206, 5.5, 316); root.add(tankBand);
+    block(206, 316, 4.5, 4.5);
+    facades.push({ x: 206, z: 316, w: 8, d: 8, h: 7, docks: true });
+    // PORT SOLARA gate sign over the causeway — teal letters on the
+    // dark, lit at night like the Neon Row signs.
+    solid(1.2, 8, 1.2, 0x2e3438, 178, 4, 196);
+    solid(1.2, 8, 1.2, 0x2e3438, 194, 4, 196);
+    const gateSign = solid(17, 2.2, 1, 0x2ee8ff, 186, 8.6, 196, { emissive: 0x2ee8ff, emissiveIntensity: 1.5 });
+    neonMeshes.push(gateSign);
+    // One more container row by the gate, so the yard is dense from
+    // the moment Mara drives in.
+    containerStack(206, 214, 2);
+    containerStack(206, 222, 1);
+    containerStack(172, 218, 2);
+    // The Dock Hauler — mission 7's truck, parked in the yard by
+    // Crane Row. Flagged courier so the mission engine's steal step
+    // recognises it, like the gold Vega courier car in mission 2.
+    const hauler = makeVehicle(0xff7a2e, false, 'truck');
+    hauler.position.set(200, 0, 280);
+    hauler.rotation.y = Math.PI / 2;
+    parked.push({ mesh: hauler, x: 200, z: 280, heading: Math.PI / 2, name: 'Dock Hauler', courier: true, stolen: false });
+  }
+
   // ---------- vehicles ----------
   function makeVehicle(color, cop, kind) {
     const g = new THREE.Group();
@@ -503,7 +706,7 @@ export function buildWorld(scene, rng) {
   return {
     root, solids, facades, palmCrowns, traffic, parked, walkers, police,
     neonMeshes, lampGlows, courierCar, danny, pistolPickup, beacon,
-    courierMarker,
+    courierMarker, docks,
     pushOut, makeVehicle, makeWalker, spawnTraffic, makeHeli,
   };
 }

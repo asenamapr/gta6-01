@@ -9,7 +9,7 @@
 //   ?shot=start&seed=1  title over the bay skyline at golden hour
 //   ?shot=chase&seed=1  bridge chase, 4 stars, police + helicopter
 //   ?shot=play&seed=1   on-foot in Neon Row as the signs light up
-//   ?shot=end&seed=1    Night Shift: courier job in Neon Row at night
+//   ?shot=end&seed=1    Port Solara at night: the docks run, Warehouse 7 owned
 'use strict';
 
 import { SHIRTS, NIGHT_HOUR, pick } from './config.js';
@@ -70,22 +70,28 @@ export function getShotSetup(shot) {
     };
   }
   if (shot === 'end') {
-    // Night Shift, the Round 4 system: full night, Mara in the Night
-    // Courier Van on the 120 road in Neon Row, a courier job live —
-    // cyan marker at the Starfish Casino, job HUD showing the timer,
-    // payout and streak. The camera looks north up the lit strip.
+    // Round 5: Port Solara at night — Mara in the Dock Hauler on the
+    // pier, Warehouse 7 already hers with $2,450 waiting to collect,
+    // gantry cranes and container stacks behind her, a courier job
+    // live at the warehouse door. The camera looks north up the pier
+    // so the cranes, the crates and the business panel all read.
     return {
       mode: 'night',
-      camera: { dist: 15, height: 7, lookAhead: 14 },
-      playerCar: { x: 120, z: 46, heading: Math.PI, speed: 0 },
-      missionIndex: 6, stepIndex: 0, cash: 12480, wanted: 0,
+      camera: { dist: 16, height: 7.5, lookAhead: 16 },
+      playerCar: { x: 198, z: 292, heading: Math.PI, speed: 0 },
+      missionIndex: 6, stepIndex: 2, cash: 18480, wanted: 0,
       dusk: 1,
       job: {
-        phase: 'pickup', spot: 'STARFISH CASINO', x: 120, z: -40,
-        dest: 'PALM COURT', dx: -120, dz: 120,
-        payout: 1480, timer: 87, streak: 3, jobsDone: 7, nightScore: 9630,
+        phase: 'pickup', spot: 'CRANE ROW', x: 198, z: 262,
+        dest: 'SALT & SMOKE', dx: -128, dz: 170,
+        payout: 1920, timer: 104, streak: 4, jobsDone: 9, nightScore: 12480,
       },
-      banner: { title: 'NIGHT SHIFT', text: 'Courier job 8 \u2014 Starfish Casino \u2192 Palm Court \u00b7 $1,480 \u00b7 streak 3' },
+      business: { owned: ['warehouse'], tier: 1, uncollected: 2450 },
+      dockCrowd: [
+        { dx: -4, dz: -4 }, { dx: 4, dz: -8 }, { dx: -2, dz: 6 },
+        { dx: 6, dz: 2 }, { dx: -6, dz: 0 }, { dx: 2, dz: 10 },
+      ],
+      banner: { title: 'PORT SOLARA', text: 'Warehouse 7 is yours — $2,450 waiting · The Docks Run' },
       showStartOverlay: false,
     };
   }
@@ -152,21 +158,39 @@ export function applyShotSetup(setup, ctx) {
   if (setup.mode === 'night') {
     // Night Shift staging: Mara in the teal Night Courier Van, a live
     // courier job with its cyan marker at the pickup, full night.
+    // Round 5: when the staged car sits on the pier, she drives the
+    // Dock Hauler instead — the docks run's own truck.
     state.nightShift = true;
     state.time = NIGHT_HOUR;
     state.nightScore = setup.job.nightScore;
     state.jobsDone = setup.job.jobsDone;
     state.streak = setup.job.streak;
-    const van = world.parked.find((p) => p.name === 'Night Courier Van');
-    if (van) ctx.enterCarSilent(van);
+    const onDocks = setup.playerCar.x > 168 && setup.playerCar.z > 196;
+    const docksTruck = onDocks ? world.parked.find((p) => p.name === 'Dock Hauler') : null;
+    if (docksTruck) ctx.enterCarSilent(docksTruck);
     else {
-      const pk = world.parked.find((p) => !p.stolen);
-      if (pk) ctx.enterCarSilent(pk);
+      const van = world.parked.find((p) => p.name === 'Night Courier Van');
+      if (van) ctx.enterCarSilent(van);
+      else {
+        const pk = world.parked.find((p) => !p.stolen);
+        if (pk) ctx.enterCarSilent(pk);
+      }
     }
     state.car.mesh.position.set(setup.playerCar.x, 0, setup.playerCar.z);
     state.car.heading = setup.playerCar.heading;
     state.car.speed = setup.playerCar.speed;
     state.speed = 0;
+    // Dockworkers crowd the pier around the truck so the shot reads
+    // as a working port, not an empty deck.
+    if (setup.dockCrowd) {
+      setup.dockCrowd.forEach((c) => {
+        const mesh = world.makeWalker(setup.playerCar.x + c.dx, setup.playerCar.z + c.dz, pick(pickRng, SHIRTS));
+        world.walkers.push({
+          mesh, x: setup.playerCar.x + c.dx, z: setup.playerCar.z + c.dz,
+          heading: pickRng() * Math.PI * 2, speed: 0, down: false, downT: 0, road: 0, dock: true,
+        });
+      });
+    }
     state.job = {
       active: true,
       phase: setup.job.phase,

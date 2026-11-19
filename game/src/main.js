@@ -11,12 +11,29 @@
 
 import {
   GRID, TAU, SAVE_KEY, MISSIONS, SHIRTS, DUSK_START, NIGHT_HOUR,
-  NIGHT_JOB, NIGHT_JOB_SPOTS,
+  NIGHT_JOB, NIGHT_JOB_SPOTS, BUSINESS_DEFS, BIZ_DEFENSE, DOCK_SPOTS,
   clamp, lerp, angDiff, mulberry32, pick, dist2d, fmtClock,
 } from './config.js';
 import { setupRenderer, setupScene, makeCameraRig, drawMinimap } from './render.js';
 import { buildWorld } from './world.js';
 import { getShotSetup, applyShotSetup } from './shots.js';
+import {
+  createBizState, bizDef, isOwned, ownedCount, ownedIds,
+  incomePerDay, portfolioPerDay, uncollectedTotal, tickBiz,
+  buyBiz, nextUpgrade, upgradeBiz, collectBiz, nearestBizDoor, bizLine,
+  maybeStartDefense, startDefense, updateDefense,
+  resolveDefenseWin, resolveDefenseLoss,
+  serializeBiz, deserializeBiz, bizNetWorth,
+} from './business.js';
+import {
+  MISSIONS_2, DANNY_DEBT, finaleOutcome, epilogueLine, dialogueFor,
+  actTwoBrief, docksRunBonus, surviveSeconds, bizReminder, DANNY_PIER,
+} from './missions2.js';
+
+// The full story: the six original missions, then Act II (missions 7
+// and 8) from missions2.js. Every mission lookup goes through this
+// list, so the engine never has to know where a mission came from.
+const ALL_MISSIONS = MISSIONS.concat(MISSIONS_2);
 
 // ---------- URL / shot params ----------
 const params = new URLSearchParams(location.search);
@@ -39,23 +56,35 @@ const state = {
   // Night Shift (Round 4): unlocked by finishing mission 6.
   nightShift: false, nightScore: 0, jobsDone: 0, jobsFailed: 0,
   streak: 0, job: null, jobCooldown: 0,
+  // Businesses (Round 5): ownership state, plus the finale choice
+  // flag that routes the ending overlay's buttons to the Act II
+  // ending instead of mission 5's epilogue.
+  biz: createBizState(), finaleChoice: false, finalePaid: false,
 };
 let elapsed = 0;
 let camHeading = 0;
 
 function saveGame() {
   try {
+    // Save format v4: everything v3 had, plus the business portfolio
+    // and the Act II mission index. A v4 save reopens with Mara's
+    // fronts, her uncollected income and her defense record intact.
     localStorage.setItem(SAVE_KEY, JSON.stringify({
+      version: 4,
       cash: state.cash, missionIndex: state.missionIndex,
       health: state.health, hasPistol: state.hasPistol, ammo: state.ammo,
       nightShift: state.nightShift, nightScore: state.nightScore,
       jobsDone: state.jobsDone, streak: state.streak,
+      biz: serializeBiz(state.biz),
+      finalePaid: state.finalePaid,
     }));
   } catch (e) { /* private mode */ }
 }
 function loadGame() {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    // v4 first; a v3 save (no biz field) still loads — the business
+    // state just starts fresh, which deserializeBiz handles.
+    const raw = localStorage.getItem(SAVE_KEY) || localStorage.getItem('solara-bay-save-v3');
     return raw ? JSON.parse(raw) : null;
   } catch (e) { return null; }
 }
@@ -196,6 +225,8 @@ addEventListener('keydown', (e) => {
   keys[e.code] = true;
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (e.code === 'KeyM') { state.muted = !state.muted; toast(state.muted ? 'Sound muted' : 'Sound on'); }
+  if (e.code === 'KeyB') onCollectBiz();
+  if (e.code === 'KeyU') onUpgradeBiz();
   if (e.code === 'KeyR') { Sound.radioStep++; toast('Radio station changed'); }
   if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
   if (e.code === 'Enter' && !state.started) startGame();
@@ -616,6 +647,16 @@ function exitCar() {
 function onInteract() {
   if (!state.started || state.paused || state.over) return;
   if (state.inCar) { exitCar(); return; }
+  // A mission interact step beats a business door when Mara is
+  // standing on its spot: the Warehouse 7 manifest and the business
+  // door share the same coordinates in mission 7.
+  const s = currentStep();
+  if (s && s.type === 'interact' && Math.hypot(player.x - s.x, player.z - s.z) < 14) {
+    checkMissionInteract();
+    return;
+  }
+  // A business door beats a car door: E at a front buys or collects.
+  if (tryBusinessInteract()) return;
   const pk = nearestStealable();
   if (pk) { enterCar(pk); return; }
   checkMissionInteract();
@@ -713,12 +754,14 @@ function updateWalkers(dt) {
 }
 
 // ---------- missions ----------
-function currentMission() { return MISSIONS[state.missionIndex] || null; }
+function currentMission() { return ALL_MISSIONS[state.missionIndex] || null; }
 function currentStep() { const m = currentMission(); return m ? m.steps[state.stepIndex] : null; }
 function stepTarget() {
   const s = currentStep();
   if (!s) return null;
-  if (s.type === 'steal') return { x: 120, z: 140 };
+  // Mission 2 steals the gold Vega courier car by the harbor;
+  // mission 7 steals the Dock Hauler in the port yard instead.
+  if (s.type === 'steal') return state.missionIndex === 6 ? { x: 200, z: 280 } : { x: 120, z: 140 };
   if (s.type === 'pickup' || s.type === 'goto' || s.type === 'interact') return { x: s.x, z: s.z };
   return null;
 }
@@ -741,20 +784,44 @@ function advanceStep() {
 }
 function completeMission() {
   const m = currentMission();
-  state.cash += m.reward;
+  // Mission 7 pays a bonus per business owned on its route — the
+  // bar drop and the casino hand-off stay in Mara's own family.
+  let reward = m.reward;
+  if (state.missionIndex === 6) reward += docksRunBonus(ownedCount(state.biz));
+  state.cash += reward;
   Sound.sfx('complete');
   Sound.sfx('cash');
-  showBanner('MISSION COMPLETE', m.name + ' \u2014 +$' + m.reward.toLocaleString());
+  showBanner('MISSION COMPLETE', m.name + ' \u2014 +$' + reward.toLocaleString());
   state.missionIndex++;
   state.stepIndex = 0;
   state.stepTimer = 0;
   saveGame();
-  if (state.missionIndex >= MISSIONS.length) {
-    // The story is done — the Night Shift begins (see below).
+  if (state.missionIndex === 6) {
+    // Mission 6 done — the Night Shift unlocks here, as in Round 4,
+    // and Act II (missions 7-8) plays on inside the night city.
+    startNightShift();
+  }
+  if (state.missionIndex >= ALL_MISSIONS.length) {
+    // The whole story is done — the Night Shift resumes (or begins,
+    // for a save that finished before Act II existed).
     startNightShift();
   } else {
-    const next = MISSIONS[state.missionIndex];
-    setTimeout(() => toast(next.name + ': ' + next.intro), 2600);
+    const next = ALL_MISSIONS[state.missionIndex];
+    // Mission 8 starts with Danny on the pier, not at Palm Court:
+    // move his walker to the end of the Port Solara pier.
+    if (state.missionIndex === 7) {
+      world.danny.position.set(DANNY_PIER.x, 0, DANNY_PIER.z);
+      const dw = walkers.find((w) => w.danny);
+      if (dw) { dw.x = DANNY_PIER.x; dw.z = DANNY_PIER.z; }
+    }
+    // Act II missions open with their dialogue, one toast at a time.
+    const lines = dialogueFor(state.missionIndex);
+    if (lines.length > 0) {
+      lines.forEach((ln, i) => setTimeout(() => toast(ln.who + ': ' + ln.line), 2600 + i * 3400));
+      setTimeout(() => toast(next.name + ': ' + next.intro), 2600 + lines.length * 3400);
+    } else {
+      setTimeout(() => toast(next.name + ': ' + next.intro), 2600);
+    }
   }
 }
 function updateMissions(dt) {
@@ -776,8 +843,11 @@ function updateMissions(dt) {
     const p = playerPos();
     let near = 999;
     for (const po of police) near = Math.min(near, Math.hypot(po.mesh.position.x - p.x, po.mesh.position.z - p.z));
+    // Mission 8's escape is shorter when Mara owns Warehouse 7 —
+    // the dock crew jams the gate behind her and buys her seconds.
+    const need = state.missionIndex === 7 ? surviveSeconds(isOwned(state.biz, 'warehouse')) : s.seconds;
     if (near > 45) {
-      if (state.stepTimer >= s.seconds) advanceStep();
+      if (state.stepTimer >= need) advanceStep();
     } else {
       state.stepTimer = Math.max(0, state.stepTimer - dt * 0.5);
     }
@@ -793,6 +863,15 @@ function updateMissions(dt) {
   } else if (s.type === 'choice') {
     if (!state.ending) {
       state.over = true;
+      // Mission 8's choice is the finale, not mission 5's epilogue:
+      // the overlay gets the debt wording and the buttons route to
+      // beginFinale instead of beginEpilogue.
+      if (state.missionIndex === 7) {
+        state.finaleChoice = true;
+        document.getElementById('endingtext').textContent = 'The debt is due — $' + DANNY_DEBT.toLocaleString() + ' to Vega. Danny is on the boat. Pay it and walk clean, or keep it all and own the bay.';
+        document.getElementById('payBtn').textContent = 'PAY THE DEBT — DANNY WALKS FREE';
+        document.getElementById('keepBtn').textContent = 'KEEP EVERYTHING — QUEEN OF THE BAY';
+      }
       document.getElementById('ending').style.display = 'flex';
     }
   }
@@ -812,12 +891,21 @@ function checkMissionInteract() {
   if (s.type === 'interact') {
     const d = Math.hypot(player.x - s.x, player.z - s.z);
     if (d < 14) {
-      // The bag is the mission-5 reward, paid out here at the vault —
-      // so the ending choice (pay Vega / keep it) moves real money.
-      state.cash += 40000;
-      toast('Bag grabbed \u2014 $40,000 of Vega money. RUN!');
-      Sound.sfx('cash');
-      advanceStep();
+      if (state.missionIndex === 6) {
+        // Mission 7, Warehouse 7: the manifest, not the bank bag —
+        // no cash here, the run pays at the end (plus the per-front
+        // bonus in completeMission).
+        toast('Manifest grabbed — five drops, one night. Take the Dock Hauler.');
+        Sound.sfx('pickup');
+        advanceStep();
+      } else {
+        // The bag is the mission-5 reward, paid out here at the vault —
+        // so the ending choice (pay Vega / keep it) moves real money.
+        state.cash += 40000;
+        toast('Bag grabbed \u2014 $40,000 of Vega money. RUN!');
+        Sound.sfx('cash');
+        advanceStep();
+      }
     } else toast('Get to the bank doors first.');
   }
   if (s.type === 'pickup') toast('Walk up to Danny \u2014 on foot.');
@@ -847,6 +935,139 @@ function beginEpilogue(choice) {
   }
   setTimeout(() => toast(next.name + ': ' + next.intro), 2800);
   saveGame();
+}
+
+// The mission-8 finale choice. Unlike mission 5's epilogue (which
+// opens mission 6), this one ends the story: paying Vega clears the
+// $40,000 debt for good, keeping it banks the money and the heat.
+// Either way the mission completes, the Night Shift resumes, and the
+// businesses keep paying — clean owner, or queen of the bay.
+function beginFinale(choice) {
+  const out = finaleOutcome(choice, state.cash, uncollectedTotal(state.biz));
+  state.ending = choice === 'pay' ? 'debt-paid' : 'kept-everything';
+  state.finalePaid = choice === 'pay';
+  document.getElementById('ending').style.display = 'none';
+  state.over = false;
+  // Collect first: the uncollected pot is part of what Mara pays with.
+  const collected = collectBiz(state.biz);
+  state.cash += collected;
+  if (choice === 'pay') {
+    state.cash = Math.max(0, state.cash - out.paid);
+    state.wanted = 0;
+  } else {
+    state.cash += DANNY_DEBT;
+    state.wanted = 5;
+    state.lastCrimeT = elapsed;
+    while (police.length < 5) spawnPolice();
+  }
+  // Complete the mission first (reward + Night Shift resume), then
+  // put the finale banner on top so it is the last thing Mara sees.
+  completeMission();
+  showBanner(out.bannerTitle, out.bannerText);
+  toast(out.toast);
+  toast(epilogueLine(choice));
+  saveGame();
+}
+
+// ---------- BUSINESSES — buy, upgrade, collect, defend (Round 5) ----------
+// E at a front door buys the business (or collects from it when
+// already owned); B collects every uncollected dollar from anywhere;
+// U buys the next upgrade tier for the nearest owned business. A
+// defense event starts a 45-second dash to the business under
+// attack: arrive and Vega pays you off, miss it and they skim half
+// the uncollected pot.
+function tryBusinessInteract() {
+  const p = playerPos();
+  const def = nearestBizDoor(p.x, p.z, 14);
+  if (!def) return false;
+  if (isOwned(state.biz, def.id)) {
+    const got = collectBiz(state.biz);
+    if (got > 0) {
+      state.cash += got;
+      Sound.sfx('cash');
+      toast('Collected $' + got.toLocaleString() + ' from ' + def.name + '.');
+    } else {
+      toast(def.name + ' — nothing waiting yet. Income lands every day; press B later.');
+    }
+    saveGame();
+    return true;
+  }
+  const res = buyBiz(state.biz, def, state.cash);
+  if (!res.ok) { toast(res.why); return true; }
+  state.cash -= res.cost;
+  Sound.sfx('cash');
+  showBanner('PROPERTY BOUGHT', def.name + ' is yours — $' + incomePerDay(state.biz, def).toLocaleString() + '/day. Press B to collect.');
+  toast('You own ' + def.name + '. Vega will hear about it — watch the doors.');
+  saveGame();
+  return true;
+}
+function onCollectBiz() {
+  if (!state.started || state.paused || state.over) return;
+  if (ownedCount(state.biz) === 0) {
+    toast('No businesses yet — the Velvet Reef, Warehouse 7 and Salt & Smoke are for sale. Walk to a door and press E.');
+    return;
+  }
+  const got = collectBiz(state.biz);
+  if (got > 0) {
+    state.cash += got;
+    Sound.sfx('cash');
+    toast('Collected $' + got.toLocaleString() + ' from your businesses.');
+    saveGame();
+  } else {
+    toast('Nothing to collect yet — $' + portfolioPerDay(state.biz).toLocaleString() + '/day is still accruing.');
+  }
+}
+function onUpgradeBiz() {
+  if (!state.started || state.paused || state.over) return;
+  const p = playerPos();
+  const def = nearestBizDoor(p.x, p.z, 14);
+  if (!def) { toast('Stand at one of your businesses and press U to upgrade it.'); return; }
+  if (!isOwned(state.biz, def.id)) { toast(def.name + ' is for sale — press E to buy it first ($' + def.cost.toLocaleString() + ').'); return; }
+  const res = upgradeBiz(state.biz, def, state.cash);
+  if (!res.ok) { toast(res.why); return; }
+  state.cash -= res.cost;
+  Sound.sfx('cash');
+  showBanner('UPGRADED', def.name + ' — ' + res.upgrade.name + '. Now $' + incomePerDay(state.biz, def).toLocaleString() + '/day.');
+  saveGame();
+}
+function bizDoorPrompt() {
+  const p = playerPos();
+  const def = nearestBizDoor(p.x, p.z, 14);
+  if (!def) return '';
+  if (isOwned(state.biz, def.id)) {
+    const pot = Math.floor(state.biz.uncollected[def.id] || 0);
+    return pot > 0 ? 'Press E — collect $' + pot.toLocaleString() + ' from ' + def.name : def.name + ' (yours) — U upgrades';
+  }
+  return 'Press E — buy ' + def.name + ' for $' + def.cost.toLocaleString();
+}
+function updateBizTick(dt) {
+  tickBiz(state.biz, dt);
+  // Defense events: the roll runs while Mara owns something and is
+  // out driving; the timer runs once one fires.
+  if (!state.biz.defense) {
+    const ev = maybeStartDefense(state.biz, rng, dt);
+    if (ev) {
+      state.wanted = Math.max(state.wanted, 1);
+      toast(ev.title + ' — ' + ev.text + ' Get to ' + ev.bizName + ' in ' + ev.window + 's!');
+      Sound.sfx('siren');
+    }
+  } else {
+    const p = playerPos();
+    const out = updateDefense(state.biz, dt, p.x, p.z);
+    if (out === 'arrived') {
+      const bonus = resolveDefenseWin(state.biz);
+      state.cash += bonus;
+      Sound.sfx('complete');
+      showBanner('TURF HELD', 'The Vega crew backed off — +$' + bonus.toLocaleString() + ' for the trouble.');
+      saveGame();
+    } else if (out === 'expired') {
+      const skimmed = resolveDefenseLoss(state.biz);
+      Sound.sfx('fail');
+      toast('Too slow — Vega skimmed $' + skimmed.toLocaleString() + ' from your businesses.');
+      saveGame();
+    }
+  }
+  if (state.biz.defenseCooldown > 0) state.biz.defenseCooldown -= dt;
 }
 
 // ---------- NIGHT SHIFT — courier job system (Round 4) ----------
@@ -995,7 +1216,11 @@ function updateHUD() {
   if (m) {
     $('mtitle').textContent = m.name + '  \u00b7  $' + m.reward.toLocaleString();
     const s = currentStep();
-    $('mobj').textContent = s ? s.text : 'All jobs done.';
+    // Act II missions get their one-line brief under the step text,
+    // so the docks run and the finale read as a second act, not a
+    // continuation of the same six jobs.
+    const brief = actTwoBrief(state.missionIndex);
+    $('mobj').textContent = (s ? s.text : 'All jobs done.') + (brief ? ' — ' + brief : '');
   } else if (state.nightShift) {
     $('mtitle').textContent = 'NIGHT SHIFT \u2014 FREE ROAM';
     $('mobj').textContent = 'All six jobs complete. Courier jobs pay cash \u2014 follow the cyan marker.';
@@ -1023,6 +1248,24 @@ function updateHUD() {
   } else {
     jobEl.style.display = 'none';
   }
+  // Business panel: portfolio at a glance — what Mara owns, what
+  // each front earns, what is waiting to collect, and any Vega crew
+  // currently at a door. Hidden until the first purchase.
+  const bizEl = $('biz');
+  if (ownedCount(state.biz) > 0 || state.biz.defense) {
+    bizEl.style.display = 'block';
+    const owned = ownedIds(state.biz);
+    $('bizline1').textContent = owned.map((id) => bizLine(state.biz, bizDef(id))).join('  ·  ');
+    const waiting = Math.floor(uncollectedTotal(state.biz));
+    const def = state.biz.defense;
+    $('bizline2').textContent = def
+      ? def.title + ' at ' + def.bizName + ' — ' + Math.ceil(def.timer) + 's! Get there! (B collects, U upgrades)'
+      : 'Portfolio $' + portfolioPerDay(state.biz).toLocaleString() + '/day · waiting $' + waiting.toLocaleString()
+        + ' · net worth $' + bizNetWorth(state.biz).toLocaleString() + ' · B collect · U upgrade';
+    bizEl.classList.toggle('urgent', !!def);
+  } else {
+    bizEl.style.display = 'none';
+  }
   $('speed').textContent = Math.round(state.speed);
   $('vehname').textContent = state.inCar && state.car
     ? state.car.name.toUpperCase() + (state.car.courier ? ' \u2605 COURIER' : '')
@@ -1033,11 +1276,15 @@ function updateHUD() {
   if (!state.started) { pr.style.display = 'none'; return; }
   let msg = '';
   if (!state.inCar) {
-    const pk = nearestStealable();
-    if (pk) msg = 'Press E \u2014 steal the ' + pk.name;
+    const bizMsg = bizDoorPrompt();
+    if (bizMsg) msg = bizMsg;
+    else {
+      const pk = nearestStealable();
+      if (pk) msg = 'Press E \u2014 steal the ' + pk.name;
     else if (currentStep() && currentStep().type === 'interact' && distTo(40, -8) < 14) msg = 'Press E \u2014 grab the bag';
-    else if (currentStep() && currentStep().type === 'pickup' && Math.hypot(player.x + 120, player.z - 120) < 6) msg = 'Danny is here \u2014 walk to him';
+    else if (currentStep() && currentStep().type === 'pickup' && Math.hypot(player.x - currentStep().x, player.z - currentStep().z) < 6) msg = 'Danny is here \u2014 walk to him';
     else if (!state.hasPistol && Math.hypot(player.x + 128, player.z + 128) < 3) msg = 'Pistol case here \u2014 walk over it to pick it up';
+    }
   } else {
     msg = 'E exit car \u00b7 SPACE handbrake';
   }
@@ -1053,6 +1300,17 @@ function refreshMinimap() {
     missionIndex: state.missionIndex,
     waypoint: stepTarget(),
     job: jobTarget(),
+    businesses: BUSINESS_DEFS.map((d) => ({ x: d.x, z: d.z, owned: isOwned(state.biz, d.id) })),
+    defense: state.biz.defense ? { x: state.biz.defense.x, z: state.biz.defense.z } : null,
+    docks: {
+      spots: DOCK_SPOTS,
+      containers: [
+        { x: 174, z: 258 }, { x: 174, z: 266 }, { x: 174, z: 274 },
+        { x: 180, z: 262 }, { x: 204, z: 272 }, { x: 204, z: 280 },
+        { x: 204, z: 288 }, { x: 176, z: 306 }, { x: 196, z: 312 },
+      ],
+      cranes: [{ x: 190, z: 262 }, { x: 190, z: 300 }],
+    },
     player: { x: playerPos().x, z: playerPos().z },
     playerHeading: state.inCar && state.car ? state.car.heading : player.heading,
     elapsed,
@@ -1067,29 +1325,41 @@ function startGame() {
   Sound.init();
   const saved = loadGame();
   if (saved && SHOT === '') {
-    if (saved.missionIndex > 0) {
+    if (saved.missionIndex > 0 || saved.biz) {
       state.cash = saved.cash || 0;
-      state.missionIndex = Math.min(saved.missionIndex, MISSIONS.length);
+      state.missionIndex = Math.min(saved.missionIndex || 0, ALL_MISSIONS.length);
       state.health = saved.health || 100;
       state.hasPistol = !!saved.hasPistol;
       state.ammo = saved.ammo || 0;
       state.nightScore = saved.nightScore || 0;
       state.jobsDone = saved.jobsDone || 0;
       state.streak = saved.streak || 0;
-      if (saved.nightShift || saved.missionIndex >= MISSIONS.length) {
+      state.finalePaid = !!saved.finalePaid;
+      // A v4 save restores the portfolio; a v3 save has no biz field
+      // and deserializeBiz starts Mara with nothing owned.
+      state.biz = deserializeBiz(saved.biz);
+      if (saved.nightShift || saved.missionIndex >= ALL_MISSIONS.length) {
         // A finished save reopens straight into the Night Shift.
         state.nightShift = true;
         state.time = NIGHT_HOUR;
         state.jobCooldown = 2;
         toast('Night Shift \u2014 welcome back, Mara. First job incoming.');
-      } else {
-        toast('Save loaded \u2014 ' + MISSIONS[state.missionIndex].name);
+      } else if (saved.missionIndex > 0) {
+        toast('Save loaded \u2014 ' + ALL_MISSIONS[state.missionIndex].name);
+      }
+      if (ownedCount(state.biz) > 0) {
+        setTimeout(() => toast(bizReminder(ownedCount(state.biz), portfolioPerDay(state.biz))), 4000);
       }
     }
   }
   const m = currentMission();
   if (m) { toast(m.name + ': ' + m.intro); setStepWanted(); }
-  const starter = parked.find((pk) => !pk.stolen);
+  // The starter car is the first ordinary parked car — never a
+  // courier car. The gold Vega courier (mission 2) and the Dock
+  // Hauler (mission 7) must stay where their missions expect them;
+  // the docks block parks the Hauler first, so an unfiltered find
+  // would drag it to the garage as the starter.
+  const starter = parked.find((pk) => !pk.stolen && !pk.courier);
   if (starter && !state.inCar) {
     starter.x = -136; starter.z = -122; starter.mesh.position.set(-136, 0, -122);
   }
@@ -1101,8 +1371,8 @@ function togglePause() {
 }
 $('startBtn').addEventListener('click', startGame);
 $('resumeBtn').addEventListener('click', togglePause);
-$('payBtn').addEventListener('click', () => beginEpilogue('pay'));
-$('keepBtn').addEventListener('click', () => beginEpilogue('keep'));
+$('payBtn').addEventListener('click', () => { if (state.finaleChoice) beginFinale('pay'); else beginEpilogue('pay'); });
+$('keepBtn').addEventListener('click', () => { if (state.finaleChoice) beginFinale('keep'); else beginEpilogue('keep'); });
 
 // ---------- deterministic screenshot hooks ----------
 let shotSetup = null;
@@ -1124,6 +1394,15 @@ function applyShot() {
     camRig.heading = Math.PI;
     showBanner(setup.banner.title, setup.banner.text);
     $('banner').style.display = 'block';
+  }
+  // Shot 4 staging: Mara already owns Warehouse 7 with income
+  // waiting, so the business panel and the gold minimap marker show
+  // in the docks frame.
+  if (setup.business) {
+    for (const id of setup.business.owned || []) {
+      state.biz.owned[id] = setup.business.tier || 0;
+      state.biz.uncollected[id] = setup.business.uncollected || 0;
+    }
   }
   // Staged poses are frozen: the frame loop rebuilds the camera from
   // the pose every tick instead of letting the follow camera drift away.
@@ -1171,7 +1450,10 @@ function frame() {
     } else if (shotSetup.mode === 'play') {
       camRig.snapTo({ x: player.x, z: player.z }, Math.PI, shotSetup.camera.dist, shotSetup.camera.height, shotSetup.camera.lookAhead);
     } else if (shotSetup.mode === 'night' && state.car) {
-      camRig.snapTo(state.car.mesh.position, Math.PI, shotSetup.camera.dist, shotSetup.camera.height, shotSetup.camera.lookAhead);
+      // Round 5: the camera follows the staged car's own heading, so
+      // the docks shot looks down the pier the way the truck faces
+      // instead of a hardcoded north.
+      camRig.snapTo(state.car.mesh.position, state.car.heading, shotSetup.camera.dist, shotSetup.camera.height, shotSetup.camera.lookAhead);
       $('banner').style.display = 'block';
       $('bannertitle').textContent = shotSetup.banner.title;
       $('bannertext').textContent = shotSetup.banner.text;
@@ -1187,6 +1469,7 @@ function frame() {
     updateHeli(dt);
     updateMissions(dt);
     updateNightShift(dt);
+    updateBizTick(dt);
     updateSmoke(dt);
     updateSkids(dt);
     if (!state.hasPistol && Math.hypot(player.x + 128, player.z + 128) < 2.5 && !state.inCar) {
@@ -1230,11 +1513,67 @@ function frame() {
 
 // Debug handle (read-only state for testing / verification).
 window.SOLARA = {
-  state, player,
+  state, player, world,
   get car() { return state.car; },
   get pos() { return playerPos(); },
   get job() { return state.job; },
+  get biz() { return state.biz; },
+  get missions() { return ALL_MISSIONS; },
   startNightShift, spawnJob,
+  // Verification helpers (Round 5): buy a business at full price,
+  // collect income, force a defense event, jump to a mission, and
+  // teleport Mara or her car. Playtesting only — the shipped game
+  // never calls these on its own.
+  buyBusiness(id) {
+    const def = bizDef(id);
+    if (!def) return { ok: false, why: 'no such business: ' + id };
+    const res = buyBiz(state.biz, def, state.cash);
+    if (res.ok) { state.cash -= res.cost; saveGame(); }
+    return res;
+  },
+  upgradeBusiness(id) {
+    const def = bizDef(id);
+    if (!def) return { ok: false, why: 'no such business: ' + id };
+    const res = upgradeBiz(state.biz, def, state.cash);
+    if (res.ok) { state.cash -= res.cost; saveGame(); }
+    return res;
+  },
+  collectBiz() {
+    const got = collectBiz(state.biz);
+    state.cash += got;
+    saveGame();
+    return got;
+  },
+  triggerDefense() { return startDefense(state.biz, rng); },
+  setMission(i) {
+    state.missionIndex = i;
+    state.stepIndex = 0;
+    state.stepTimer = 0;
+    state.over = false;
+    state.ending = null;
+    state.finaleChoice = false;
+    if (i === 7) {
+      world.danny.position.set(DANNY_PIER.x, 0, DANNY_PIER.z);
+      const dw = walkers.find((w) => w.danny);
+      if (dw) { dw.x = DANNY_PIER.x; dw.z = DANNY_PIER.z; }
+    }
+    setStepWanted();
+    const m = currentMission();
+    if (m) toast(m.name + ': ' + m.intro);
+    return m ? m.name : null;
+  },
+  teleport(x, z) {
+    if (state.inCar && state.car) {
+      state.car.mesh.position.set(x, 0, z);
+      state.car.speed = 0;
+    } else {
+      player.x = x; player.z = z;
+      player.mesh.position.set(x, 0, z);
+    }
+  },
+  interact() { onInteract(); },
+  beginFinale(choice) { beginFinale(choice); },
+  giveCash(n) { state.cash += n; return state.cash; },
 };
 
 // ---------- init ----------

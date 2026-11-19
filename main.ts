@@ -12,7 +12,7 @@
 // (outside the grader's container MAKEFUN_OUTPUT_DIR stands in for
 // /output). Serve the game for playtesting with: node serve.ts,
 // then open http://localhost:8080 in a desktop browser.
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -41,6 +41,21 @@ for (const name of SHOT_NAMES) {
 }
 const shotFiles = readdirSync(join(out, 'screenshots')).filter((f) => f.endsWith('.jpg'));
 if (shotFiles.length !== 4) throw new Error('expected 4 screenshots, found ' + shotFiles.length);
+
+// Round 5: the shot manifest is part of the entry too — every shot
+// in shots.json must exist on disk with the query that stages it,
+// so a stale manifest can never claim a screenshot the packager
+// did not ship. The docks shot (4-heist) is the one that proves
+// the new Port Solara district made it into the build.
+const manifest = JSON.parse(readFileSync(join(here, 'shots.json'), 'utf-8'));
+if (!Array.isArray(manifest) || manifest.length !== 4) throw new Error('shots.json must list exactly 4 shots');
+for (const shot of manifest) {
+  if (typeof shot.name !== 'string' || typeof shot.query !== 'string' || !shot.query.startsWith('?shot=')) {
+    throw new Error('bad shot entry in shots.json: ' + JSON.stringify(shot));
+  }
+  if (!existsSync(join(out, 'screenshots', shot.name))) throw new Error('shots.json lists missing screenshot: ' + shot.name);
+}
+console.log('manifest ok: ' + manifest.map((s) => s.name + ' ' + s.query).join(' | '));
 
 // The scorer's own caps (reference/gate.json): only text_max_bytes
 // shapes the bytes; the others refuse an entry the scorer would

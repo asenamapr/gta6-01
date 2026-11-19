@@ -33,6 +33,20 @@
   #job p { margin: 0; font-size: 15px; line-height: 1.4; color: #d8f6f2; }
   #job.urgent { border-left-color: #ff5c5c; }
   #job.urgent h3 { color: #ff8d8d; }
+  /* Business panel (Round 5): gold edge, sits under the job panel.
+     Hidden until Mara owns her first front. Turns red while a Vega
+     crew is at one of her doors. */
+  #biz { top: 340px; left: 14px; width: 330px; padding: 10px 12px; border-radius: 0 10px 10px 0;
+    background: rgba(42,32,6,.88); border-left: 5px solid #ffd34d; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
+  #biz h3 { margin: 0 0 3px; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; color: #ffd34d; }
+  #biz p { margin: 0; font-size: 14px; line-height: 1.45; color: #ffe9a8; }
+  #bizline2 { color: #d8f6f2; }
+  #biz.urgent { border-left-color: #ff5c5c; }
+  #biz.urgent h3 { color: #ff8d8d; }
+  /* Docks legend under the minimap: gold diamond = business,
+     red ring = Vega crew at a door, orange blocks = containers. */
+  #docklegend { top: 424px; right: 14px; width: 200px; text-align: center; font-size: 12px;
+    color: #ffe9a8; padding: 5px 8px; border-radius: 6px; background: rgba(8,38,48,.7); }
   #mapwrap { top: 14px; right: 14px; width: 200px; height: 200px; overflow: hidden;
     border: 3px solid rgba(255,255,255,.85); border-radius: 50%; background: #123a44;
     box-shadow: 0 3px 14px rgba(0,0,0,.6); }
@@ -104,7 +118,13 @@
   <p id="jobline1"></p>
   <p id="jobline2"></p>
 </div>
+<div class="hud" id="biz" style="display:none">
+  <h3 id="biztitle">YOUR BUSINESSES</h3>
+  <p id="bizline1"></p>
+  <p id="bizline2"></p>
+</div>
 <div class="hud" id="mapwrap"><canvas id="map" width="200" height="200"></canvas></div>
+<div class="hud" id="docklegend">◆ gold = business &nbsp;·&nbsp; ○ red = Vega crew &nbsp;·&nbsp; ▮ orange = docks</div>
 <div class="hud" id="clock">SOLARA BAY &nbsp;·&nbsp; <span id="clocktime">18:42</span> &nbsp;·&nbsp; <span id="wantedlabel">CLEAN</span></div>
 <div class="hud" id="speedo"><b id="speed">0</b> mph<br><span id="vehname">ON FOOT</span></div>
 <div class="hud" id="radio">♪ RADIO SOLARA 94.1 — “Golden Hour Drive”</div>
@@ -122,10 +142,16 @@
     and bring him home. Buy him out, or lose him to the tide. Finish all six jobs
     and the Night Shift unlocks: courier runs through the neon night, chained jobs,
     streaks and a night score.</p>
+  <p class="story">Then Act II opens at Port Solara: a smuggling run through the docks, and a
+    finale on the pier where the debt comes due for good. Along the way Mara can
+    stop being only a driver and start owning the bay — the Velvet Reef casino,
+    Warehouse 7 on the docks, and the Salt &amp; Smoke beach bar. They pay every
+    day. Vega comes to take them back. Hold the doors.</p>
   <button class="go" id="startBtn">▶ &nbsp;START THE ENGINE</button>
   <div class="keys">WASD drive / walk &nbsp;·&nbsp; E enter &amp; steal car &nbsp;·&nbsp; F punch &nbsp;·&nbsp; Click shoot (pistol)
     &nbsp;·&nbsp; SPACE handbrake &nbsp;·&nbsp; R radio &nbsp;·&nbsp; P pause &nbsp;·&nbsp; M mute<br>
-    6 missions · wanted level 0–5 stars · traffic, pedestrians, police, helicopter · Night Shift courier jobs after mission 6 · progress saves automatically</div>
+    E at a business door buys it &nbsp;·&nbsp; B collect business income &nbsp;·&nbsp; U upgrade a business<br>
+    8 missions · wanted level 0–5 stars · traffic, pedestrians, police, helicopter · Night Shift courier jobs after mission 6 · 3 buyable businesses in Port Solara &amp; Neon Row · progress saves automatically</div>
 </div>
 
 <div class="overlay" id="pause">

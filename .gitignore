@@ -6,3 +6,6 @@ three.min.js
 screenshots/*.png
 *.log
 .DS_Store
+# Round 5: headless verification captures and playtest notes.
+verify-*.json
+verify-*.png

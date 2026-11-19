@@ -44,6 +44,15 @@ const MIME = {
 
 const server = createServer((req, res) => {
   const url = new URL(req.url || '/', 'http://localhost');
+  // Health endpoint for playtest harnesses: answers without touching
+  // the game files, so a verifier can tell the server is up before
+  // loading the game in headless Chromium.
+  if (url.pathname === '/health') {
+    const body = JSON.stringify({ ok: true, game: 'solara-bay', shots: 4, businesses: 3, missions: 8 });
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) });
+    res.end(body);
+    return;
+  }
   const rel = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, '');
   const file = resolve(join(root, rel));
   if (file !== root && !file.startsWith(root + sep)) {
