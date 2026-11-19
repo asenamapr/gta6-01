@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOLARA BAY — One Last Drive</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0e2a33;
+    font-family: "Trebuchet MS", "Segoe UI", Verdana, sans-serif; }
+  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hud { position: fixed; z-index: 5; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7);
+    user-select: none; pointer-events: none; }
+  #topleft { top: 14px; left: 14px; }
+  #healthwrap { width: 220px; height: 14px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.55);
+    border-radius: 7px; overflow: hidden; }
+  #healthbar { height: 100%; width: 100%; background: linear-gradient(90deg,#2dd4a7,#7ef0c8); }
+  #cashline { margin-top: 6px; font-size: 20px; font-weight: bold; letter-spacing: .5px; color:#ffe9a8; }
+  #stars { margin-top: 2px; font-size: 24px; letter-spacing: 3px; color: #ffd34d; }
+  #stars .off { color: rgba(255,255,255,.35); }
+  #mission { margin-top: 10px; width: 300px; background: rgba(8,38,48,.72); border-left: 4px solid #ff7a5c;
+    padding: 8px 10px; border-radius: 0 8px 8px 0; }
+  #mission h3 { margin: 0 0 2px; font-size: 15px; color: #ff9d86; letter-spacing: 1px; text-transform: uppercase; }
+  #mission p { margin: 0; font-size: 14px; line-height: 1.35; }
+  #mission .obj { color: #bfeef0; }
+  #mapwrap { top: 14px; right: 14px; border: 2px solid rgba(255,255,255,.65); border-radius: 50%;
+    overflow: hidden; width: 184px; height: 184px; background: #123a44; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
+  #map { display: block; width: 184px; height: 184px; }
+  #clock { top: 206px; right: 16px; text-align: right; font-size: 13px; color: #dff7f2; }
+  #speedo { bottom: 18px; right: 20px; text-align: right; font-size: 15px; }
+  #speedo b { font-size: 34px; color: #fff; }
+  #radio { bottom: 18px; left: 20px; font-size: 14px; color: #ffe9a8; background: rgba(8,38,48,.6);
+    padding: 6px 10px; border-radius: 6px; }
+  #prompt { bottom: 96px; left: 50%; transform: translateX(-50%); font-size: 17px; font-weight: bold;
+    background: rgba(8,38,48,.78); padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,.4); }
+  #toast { top: 22%; left: 50%; transform: translateX(-50%); font-size: 22px; font-weight: bold;
+    color: #ffe9a8; text-align: center; }
+  #banner { top: 34%; left: 50%; transform: translateX(-50%); text-align: center; display: none; }
+  #banner h2 { margin: 0; font-size: 44px; letter-spacing: 4px; color: #ffd34d; }
+  #banner p { margin: 4px 0 0; font-size: 18px; color: #fff; }
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; color: #fff;
+    background: linear-gradient(180deg, rgba(6,26,34,.25) 0%, rgba(6,26,34,.55) 55%, rgba(6,26,34,.85) 100%); }
+  .overlay h1 { margin: 0; font-size: 76px; letter-spacing: 10px; color: #ffe9a8;
+    text-shadow: 0 4px 0 #ff7a5c, 0 8px 24px rgba(0,0,0,.6); }
+  .overlay h2 { margin: 2px 0 0; font-size: 26px; letter-spacing: 6px; color: #7ef0d4; font-weight: normal; }
+  .overlay .quote { margin: 26px 0 6px; font-size: 22px; font-style: italic; color: #fff; max-width: 640px; }
+  .overlay .story { margin: 0 0 22px; font-size: 15px; color: #cfeee9; max-width: 620px; line-height: 1.5; }
+  .overlay .go { font-size: 20px; font-weight: bold; background: #ff7a5c; color: #fff; border: none;
+    padding: 14px 34px; border-radius: 10px; cursor: pointer; letter-spacing: 2px;
+    box-shadow: 0 4px 18px rgba(0,0,0,.5); pointer-events: auto; }
+  .overlay .go:hover { background: #ff8d72; }
+  .overlay .keys { margin-top: 22px; font-size: 13px; color: #bfeef0; line-height: 1.7; }
+  #pause, #ending { display: none; }
+  #ending .choice { display: flex; gap: 14px; margin-top: 18px; }
+  #ending .choice button { pointer-events: auto; font-size: 16px; font-weight: bold; padding: 12px 22px;
+    border-radius: 10px; border: none; cursor: pointer; }
+  #ending #payBtn { background: #2dd4a7; color: #04241c; }
+  #ending #keepBtn { background: #ff7a5c; color: #fff; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="hud" id="topleft">
+  <div id="healthwrap"><div id="healthbar"></div></div>
+  <div id="cashline">$<span id="cash">0</span></div>
+  <div id="stars"></div>
+  <div id="mission"><h3 id="mtitle">SOLARA BAY</h3><p class="obj" id="mobj">Loading the bay…</p></div>
+</div>
+<div class="hud" id="mapwrap"><canvas id="map" width="184" height="184"></canvas></div>
+<div class="hud" id="clock">SOLARA BAY &nbsp;·&nbsp; <span id="clocktime">18:42</span> &nbsp;·&nbsp; <span id="wantedlabel">CLEAN</span></div>
+<div class="hud" id="speedo"><b id="speed">0</b> mph<br><span id="vehname">ON FOOT</span></div>
+<div class="hud" id="radio">♪ RADIO SOLARA 94.1 — “Golden Hour Drive”</div>
+<div class="hud" id="prompt" style="display:none"></div>
+<div class="hud" id="toast"></div>
+<div class="hud" id="banner"><h2 id="bannertitle"></h2><p id="bannertext"></p></div>
+
+<div class="overlay" id="start">
+  <h1>SOLARA BAY</h1>
+  <h2>ONE LAST DRIVE</h2>
+  <p class="quote">“You got out. The bay didn’t let go.”</p>
+  <p class="story">Mara “Reef” Calloway, ex-getaway driver. Her brother Danny owes the Vega
+    family $40,000 — and the bay always collects. One last string of jobs. Five nights.
+    Buy him out, or lose him to the tide.</p>
+  <button class="go" id="startBtn">▶ &nbsp;START THE ENGINE</button>
+  <div class="keys">WASD drive / walk &nbsp;·&nbsp; E enter &amp; steal car &nbsp;·&nbsp; F punch &nbsp;·&nbsp; Click shoot (pistol)
+    &nbsp;·&nbsp; SPACE handbrake &nbsp;·&nbsp; R radio &nbsp;·&nbsp; P pause &nbsp;·&nbsp; M mute<br>
+    5 missions · wanted level 0–5 stars · traffic, pedestrians, police · progress saves automatically</div>
+</div>
+
+<div class="overlay" id="pause">
+  <h1 style="font-size:52px">PAUSED</h1>
+  <p class="quote">The bay waits. It always waits.</p>
+  <button class="go" id="resumeBtn">RESUME</button>
+  <div class="keys">Progress is saved to this browser automatically.</div>
+</div>
+
+<div class="overlay" id="ending">
+  <h1 style="font-size:52px">ONE LAST DRIVE</h1>
+  <p class="quote" id="endingtext">The Vega money is in the bag. The boat is waiting. Danny is free — if you pay.</p>
+  <div class="choice">
+    <button id="payBtn">PAY VEGA — DANNY WALKS FREE</button>
+    <button id="keepBtn">KEEP THE MONEY — BURN THE BRIDGE</button>
+  </div>
+</div>
+
+<p id="status" role="status" aria-live="polite"></p>
+<script src="./vendor/three.min.js"></script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
