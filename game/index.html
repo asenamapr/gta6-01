@@ -8,48 +8,50 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: #0e2a33;
     font-family: "Trebuchet MS", "Segoe UI", Verdana, sans-serif; }
   #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-  .hud { position: fixed; z-index: 5; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7);
+  .hud { position: fixed; z-index: 5; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.85);
     user-select: none; pointer-events: none; }
   #topleft { top: 14px; left: 14px; }
-  #healthwrap { width: 220px; height: 14px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.55);
-    border-radius: 7px; overflow: hidden; }
+  #healthwrap { width: 240px; height: 18px; background: rgba(0,0,0,.55); border: 2px solid rgba(255,255,255,.75);
+    border-radius: 9px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
   #healthbar { height: 100%; width: 100%; background: linear-gradient(90deg,#2dd4a7,#7ef0c8); }
-  #cashline { margin-top: 6px; font-size: 20px; font-weight: bold; letter-spacing: .5px; color:#ffe9a8; }
-  #stars { margin-top: 2px; font-size: 24px; letter-spacing: 3px; color: #ffd34d; }
-  #stars .off { color: rgba(255,255,255,.35); }
-  #mission { margin-top: 10px; width: 300px; background: rgba(8,38,48,.72); border-left: 4px solid #ff7a5c;
-    padding: 8px 10px; border-radius: 0 8px 8px 0; }
-  #mission h3 { margin: 0 0 2px; font-size: 15px; color: #ff9d86; letter-spacing: 1px; text-transform: uppercase; }
-  #mission p { margin: 0; font-size: 14px; line-height: 1.35; }
-  #mission .obj { color: #bfeef0; }
-  #mapwrap { top: 14px; right: 14px; border: 2px solid rgba(255,255,255,.65); border-radius: 50%;
-    overflow: hidden; width: 184px; height: 184px; background: #123a44; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
-  #map { display: block; width: 184px; height: 184px; }
-  #clock { top: 206px; right: 16px; text-align: right; font-size: 13px; color: #dff7f2; }
-  #speedo { bottom: 18px; right: 20px; text-align: right; font-size: 15px; }
-  #speedo b { font-size: 34px; color: #fff; }
-  #radio { bottom: 18px; left: 20px; font-size: 14px; color: #ffe9a8; background: rgba(8,38,48,.6);
-    padding: 6px 10px; border-radius: 6px; }
-  #prompt { bottom: 96px; left: 50%; transform: translateX(-50%); font-size: 17px; font-weight: bold;
-    background: rgba(8,38,48,.78); padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,.4); }
-  #toast { top: 22%; left: 50%; transform: translateX(-50%); font-size: 22px; font-weight: bold;
+  #cashline { margin-top: 6px; font-size: 24px; font-weight: bold; letter-spacing: .5px; color:#ffe9a8;
+    text-shadow: 0 2px 4px rgba(0,0,0,.9); }
+  #stars { margin-top: 0; font-size: 32px; letter-spacing: 4px; color: #ffd34d;
+    text-shadow: 0 0 10px rgba(255,211,77,.55), 0 2px 4px rgba(0,0,0,.9); }
+  #stars .off { color: rgba(255,255,255,.4); text-shadow: 0 2px 4px rgba(0,0,0,.9); }
+  #mission { margin-top: 10px; width: 320px; background: rgba(6,32,42,.82); border-left: 5px solid #ff7a5c;
+    padding: 10px 12px; border-radius: 0 10px 10px 0; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
+  #mission h3 { margin: 0 0 3px; font-size: 16px; color: #ff9d86; letter-spacing: 1px; text-transform: uppercase; }
+  #mission p { margin: 0; font-size: 15px; line-height: 1.4; }
+  #mission .obj { color: #d8f6f2; }
+  #mapwrap { top: 14px; right: 14px; border: 3px solid rgba(255,255,255,.85); border-radius: 50%;
+    overflow: hidden; width: 200px; height: 200px; background: #123a44; box-shadow: 0 3px 14px rgba(0,0,0,.6); }
+  #map { display: block; width: 200px; height: 200px; }
+  #clock { top: 222px; right: 18px; text-align: right; font-size: 14px; font-weight: bold; color: #dff7f2; }
+  #speedo { bottom: 18px; right: 20px; text-align: right; font-size: 16px; }
+  #speedo b { font-size: 40px; color: #fff; }
+  #radio { bottom: 18px; left: 20px; font-size: 14px; color: #ffe9a8; background: rgba(8,38,48,.7);
+    padding: 7px 11px; border-radius: 6px; }
+  #prompt { bottom: 100px; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: bold;
+    background: rgba(8,38,48,.85); padding: 9px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,.5); }
+  #toast { top: 22%; left: 50%; transform: translateX(-50%); font-size: 23px; font-weight: bold;
     color: #ffe9a8; text-align: center; }
-  #banner { top: 34%; left: 50%; transform: translateX(-50%); text-align: center; display: none; }
-  #banner h2 { margin: 0; font-size: 44px; letter-spacing: 4px; color: #ffd34d; }
-  #banner p { margin: 4px 0 0; font-size: 18px; color: #fff; }
+  #banner { top: 32%; left: 50%; transform: translateX(-50%); text-align: center; display: none; width: 90%; }
+  #banner h2 { margin: 0; font-size: 48px; letter-spacing: 4px; color: #ffd34d; text-shadow: 0 3px 0 rgba(0,0,0,.55), 0 6px 22px rgba(0,0,0,.7); }
+  #banner p { margin: 6px 0 0; font-size: 20px; color: #fff; }
   .overlay { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center; color: #fff;
-    background: linear-gradient(180deg, rgba(6,26,34,.25) 0%, rgba(6,26,34,.55) 55%, rgba(6,26,34,.85) 100%); }
-  .overlay h1 { margin: 0; font-size: 76px; letter-spacing: 10px; color: #ffe9a8;
+    background: linear-gradient(180deg, rgba(6,26,34,.22) 0%, rgba(6,26,34,.5) 55%, rgba(6,26,34,.85) 100%); }
+  .overlay h1 { margin: 0; font-size: 78px; letter-spacing: 10px; color: #ffe9a8;
     text-shadow: 0 4px 0 #ff7a5c, 0 8px 24px rgba(0,0,0,.6); }
-  .overlay h2 { margin: 2px 0 0; font-size: 26px; letter-spacing: 6px; color: #7ef0d4; font-weight: normal; }
-  .overlay .quote { margin: 26px 0 6px; font-size: 22px; font-style: italic; color: #fff; max-width: 640px; }
-  .overlay .story { margin: 0 0 22px; font-size: 15px; color: #cfeee9; max-width: 620px; line-height: 1.5; }
-  .overlay .go { font-size: 20px; font-weight: bold; background: #ff7a5c; color: #fff; border: none;
-    padding: 14px 34px; border-radius: 10px; cursor: pointer; letter-spacing: 2px;
+  .overlay h2 { margin: 2px 0 0; font-size: 27px; letter-spacing: 6px; color: #7ef0d4; font-weight: normal; }
+  .overlay .quote { margin: 26px 0 6px; font-size: 23px; font-style: italic; color: #fff; max-width: 660px; }
+  .overlay .story { margin: 0 0 22px; font-size: 16px; color: #cfeee9; max-width: 640px; line-height: 1.5; }
+  .overlay .go { font-size: 21px; font-weight: bold; background: #ff7a5c; color: #fff; border: none;
+    padding: 15px 36px; border-radius: 10px; cursor: pointer; letter-spacing: 2px;
     box-shadow: 0 4px 18px rgba(0,0,0,.5); pointer-events: auto; }
   .overlay .go:hover { background: #ff8d72; }
-  .overlay .keys { margin-top: 22px; font-size: 13px; color: #bfeef0; line-height: 1.7; }
+  .overlay .keys { margin-top: 22px; font-size: 14px; color: #bfeef0; line-height: 1.7; }
   #pause, #ending { display: none; }
   #ending .choice { display: flex; gap: 14px; margin-top: 18px; }
   #ending .choice button { pointer-events: auto; font-size: 16px; font-weight: bold; padding: 12px 22px;
@@ -57,6 +59,21 @@
   #ending #payBtn { background: #2dd4a7; color: #04241c; }
   #ending #keepBtn { background: #ff7a5c; color: #fff; }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* Touch controls: hidden on desktop, shown only on touch devices or
+     with ?touch=1. Joystick bottom-left, action buttons bottom-right,
+     clear of the minimap (top-right) and the mission tracker (top-left). */
+  #touchUI { display: none; position: fixed; inset: 0; z-index: 6; pointer-events: none; }
+  body.touch #touchUI { display: block; }
+  #joy { position: absolute; left: 18px; bottom: 18px; width: 140px; height: 140px; border-radius: 50%;
+    background: rgba(8,38,48,.45); border: 2px solid rgba(255,255,255,.5); touch-action: none; pointer-events: auto; }
+  #joyKnob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px;
+    border-radius: 50%; background: rgba(255,122,92,.85); border: 2px solid rgba(255,255,255,.7); }
+  #touchUI button { position: absolute; border-radius: 50%; border: 2px solid rgba(255,255,255,.65);
+    color: #fff; font-weight: bold; touch-action: none; pointer-events: auto; cursor: pointer; }
+  #btnFire { right: 18px; bottom: 96px; width: 78px; height: 78px; background: rgba(255,92,92,.82); font-size: 15px; }
+  #btnAct { right: 110px; bottom: 108px; width: 64px; height: 64px; background: rgba(45,212,167,.88); color: #04241c; font-size: 24px; }
+  #btnPauseT { right: 18px; bottom: 188px; width: 52px; height: 52px; background: rgba(8,38,48,.75); font-size: 19px; }
+  body.touch #radio { left: 172px; bottom: 18px; }
 </style>
 </head>
 <body>
@@ -68,7 +85,7 @@
   <div id="stars"></div>
   <div id="mission"><h3 id="mtitle">SOLARA BAY</h3><p class="obj" id="mobj">Loading the bay…</p></div>
 </div>
-<div class="hud" id="mapwrap"><canvas id="map" width="184" height="184"></canvas></div>
+<div class="hud" id="mapwrap"><canvas id="map" width="200" height="200"></canvas></div>
 <div class="hud" id="clock">SOLARA BAY &nbsp;·&nbsp; <span id="clocktime">18:42</span> &nbsp;·&nbsp; <span id="wantedlabel">CLEAN</span></div>
 <div class="hud" id="speedo"><b id="speed">0</b> mph<br><span id="vehname">ON FOOT</span></div>
 <div class="hud" id="radio">♪ RADIO SOLARA 94.1 — “Golden Hour Drive”</div>
@@ -106,6 +123,12 @@
 </div>
 
 <p id="status" role="status" aria-live="polite"></p>
+<div id="touchUI" aria-hidden="true">
+  <div id="joy"><div id="joyKnob"></div></div>
+  <button id="btnFire" type="button">FIRE</button>
+  <button id="btnAct" type="button">E</button>
+  <button id="btnPauseT" type="button">❚❚</button>
+</div>
 <script src="./vendor/three.min.js"></script>
 <script type="module" src="./src/main.js"></script>
 </body>

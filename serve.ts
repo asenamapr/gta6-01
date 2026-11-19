@@ -1,7 +1,9 @@
 // A tiny static server for game/ (Node 22, standard library only), so an entry can be played
-// locally without a build step: `node serve.ts` serves game/ on http://localhost:8080.
-// It sends the MIME types a browser game needs, refuses any path outside game/, and otherwise
-// does nothing clever: this is a development convenience, not a web server for the internet.
+// locally without a build step: `node serve.ts` serves game/ on http://localhost:8080,
+// or `node serve.ts --port 8081` for a second instance. It sends the MIME types a browser
+// game needs, refuses any path outside game/, logs each request line to stderr for
+// playtest debugging, and otherwise does nothing clever: this is a development
+// convenience, not a web server for the internet.
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
@@ -12,8 +14,9 @@ const args = process.argv.slice(2);
 const portIndex = args.indexOf('--port');
 const requested = portIndex === -1 ? 8080 : Number(args[portIndex + 1]);
 const port = Number.isInteger(requested) && requested > 0 && requested < 65536 ? requested : 8080;
+const verbose = args.includes('--verbose');
 
-const MIME: Record<string, string> = {
+const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
@@ -39,7 +42,7 @@ const MIME: Record<string, string> = {
 
 createServer((request, response) => {
   const url = new URL(request.url ?? '/', 'http://localhost');
-  let pathname: string;
+  let pathname;
   try {
     pathname = decodeURIComponent(url.pathname);
   } catch {
@@ -52,7 +55,7 @@ createServer((request, response) => {
     response.writeHead(403).end('forbidden');
     return;
   }
-  let size: number;
+  let size;
   try {
     const stats = statSync(file);
     if (!stats.isFile()) throw new Error('not a file');
@@ -61,6 +64,7 @@ createServer((request, response) => {
     response.writeHead(404).end('not found');
     return;
   }
+  if (verbose) console.error(request.method + ' ' + pathname + ' -> 200 (' + size + ' bytes)');
   response.writeHead(200, {
     'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
     'content-length': size,

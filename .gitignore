@@ -1,0 +1,8 @@
+.makefun/
+out/
+node_modules/
+three.min.js
+# Local playtest / verification artefacts — never part of the entry.
+screenshots/*.png
+*.log
+.DS_Store
