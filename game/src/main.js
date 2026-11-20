@@ -12,6 +12,7 @@
 import {
   GRID, TAU, SAVE_KEY, MISSIONS, SHIRTS, DUSK_START, NIGHT_HOUR,
   NIGHT_JOB, NIGHT_JOB_SPOTS, BUSINESS_DEFS, BIZ_DEFENSE, DOCK_SPOTS,
+  RADIO_DEFAULT_STATION,
   clamp, lerp, angDiff, mulberry32, pick, dist2d, fmtClock,
 } from './config.js';
 import { setupRenderer, setupScene, makeCameraRig, drawMinimap } from './render.js';
@@ -29,6 +30,7 @@ import {
   MISSIONS_2, DANNY_DEBT, finaleOutcome, epilogueLine, dialogueFor,
   actTwoBrief, docksRunBonus, surviveSeconds, bizReminder, DANNY_PIER,
 } from './missions2.js';
+import { createRadio } from './radio.js';
 
 // The full story: the six original missions, then Act II (missions 7
 // and 8) from missions2.js. Every mission lookup goes through this
@@ -69,6 +71,7 @@ function saveGame() {
     // Save format v4: everything v3 had, plus the business portfolio
     // and the Act II mission index. A v4 save reopens with Mara's
     // fronts, her uncollected income and her defense record intact.
+    // Round 6 also stores the radio station (VICE FM when absent).
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       version: 4,
       cash: state.cash, missionIndex: state.missionIndex,
@@ -77,6 +80,7 @@ function saveGame() {
       jobsDone: state.jobsDone, streak: state.streak,
       biz: serializeBiz(state.biz),
       finalePaid: state.finalePaid,
+      radioStation: Radio ? Radio.stationIndex() : RADIO_DEFAULT_STATION,
     }));
   } catch (e) { /* private mode */ }
 }
@@ -91,7 +95,7 @@ function loadGame() {
 
 // ---------- sound: WebAudio synth effects + moody radio loop ----------
 const Sound = {
-  ctx: null, master: null, engineOsc: null, engineGain: null, radioStep: 0,
+  ctx: null, master: null, engineOsc: null, engineGain: null,
   init() {
     if (this.ctx) return;
     try {
@@ -108,7 +112,9 @@ const Sound = {
       this.engineGain.gain.value = 0;
       this.engineOsc.connect(lp); lp.connect(this.engineGain); this.engineGain.connect(this.master);
       this.engineOsc.start();
-      this.startRadio();
+      // The radio lives in radio.js now (Round 6): startGame creates
+      // it once the AudioContext exists, so shot mode — which stubs
+      // Sound.init — never builds one.
     } catch (e) { this.ctx = null; }
   },
   engine(rpm01) {
@@ -153,37 +159,43 @@ const Sound = {
     if (name === 'skid') { this.burst(0.3, 0.14, 1400); }
     if (name === 'job') { this.tone(660, 0.1, 'triangle', 0.22); this.tone(880, 0.1, 'triangle', 0.22, 0.08); this.tone(1320, 0.22, 'triangle', 0.22, 0.16); }
   },
-  startRadio() {
-    const chords = [[220, 261.6, 329.6], [174.6, 220, 261.6], [196, 246.9, 293.7], [164.8, 196, 246.9]];
-    const names = [
-      'RADIO SOLARA 94.1 \u2014 \u201cGolden Hour Drive\u201d',
-      'RADIO SOLARA 94.1 \u2014 \u201cPalms at Dusk\u201d',
-      'RADIO SOLARA 94.1 \u2014 \u201cTide Out Slow\u201d',
-      'RADIO SOLARA 94.1 \u2014 \u201cNeon Row Nights\u201d',
-    ];
-    const step = () => {
-      if (!this.ctx) return;
-      if (!state.muted && state.started) {
-        const chord = chords[Sound.radioStep % chords.length];
-        const t = this.ctx.currentTime;
-        chord.forEach((f) => {
-          const o = this.ctx.createOscillator(), g = this.ctx.createGain();
-          o.type = 'triangle'; o.frequency.value = f / 2;
-          g.gain.setValueAtTime(0.0001, t);
-          g.gain.linearRampToValueAtTime(0.045, t + 0.6);
-          g.gain.linearRampToValueAtTime(0.0001, t + 2.6);
-          o.connect(g); g.connect(this.master);
-          o.start(t); o.stop(t + 2.7);
-        });
-        const el = document.getElementById('radio');
-        if (el) el.textContent = '\u266a ' + names[Sound.radioStep % names.length];
-      }
-      Sound.radioStep++;
-      setTimeout(step, 2700);
-    };
-    step();
-  },
 };
+
+// ---------- Solara Bay Radio (Round 6) ----------
+// Three procedural stations out of radio.js. Built a single time,
+// the first time the game starts with an AudioContext in hand; shot
+// mode stubs Sound.init, so Sound.ctx stays null there and no radio
+// is ever made. The station rides along in the save (see saveGame)
+// and comes back in startGame; R and the HUD button both step on.
+// The radio ducks whenever a full-screen overlay is up — the title /
+// mission-briefing screen, pause, or the ending choice — or the sound
+// is muted. Checked every frame in updateHUD; getComputedStyle is
+// what sees the overlays' real state, since two of them hide by CSS
+// alone and carry no inline display value until first toggled.
+let Radio = null;
+function initRadio() {
+  if (Radio || !Sound.ctx) return;
+  Radio = createRadio(Sound.ctx, Sound.master, {
+    defaultStation: RADIO_DEFAULT_STATION,
+    onDisplay: (info) => {
+      const label = $('radiotext');
+      if (label) label.textContent = '\u266a ' + info.label;
+    },
+  });
+  Radio.start();
+}
+function nextStation() {
+  if (!Radio) return;
+  const info = Radio.next();
+  toast('Radio: ' + info.label);
+  saveGame();
+}
+function overlayOpen() {
+  return ['start', 'pause', 'ending'].some((id) => {
+    const el = document.getElementById(id);
+    return el && getComputedStyle(el).display !== 'none';
+  });
+}
 
 // ---------- renderer / scene / world ----------
 const canvas = document.getElementById('c');
@@ -227,7 +239,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') { state.muted = !state.muted; toast(state.muted ? 'Sound muted' : 'Sound on'); }
   if (e.code === 'KeyB') onCollectBiz();
   if (e.code === 'KeyU') onUpgradeBiz();
-  if (e.code === 'KeyR') { Sound.radioStep++; toast('Radio station changed'); }
+  if (e.code === 'KeyR') nextStation();
   if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
   if (e.code === 'Enter' && !state.started) startGame();
   if (e.code === 'KeyE') onInteract();
@@ -1204,8 +1216,36 @@ function showBanner(title, text) {
   clearTimeout(bannerTimer);
   bannerTimer = setTimeout(() => { $('banner').style.display = 'none'; }, 3600);
 }
+
+// Radio HUD button (Round 6): a small switch tucked inside the
+// existing radio chip — no index.html change, no layout change, and
+// it rides the chip's position (including the touch layout, where the
+// chip shifts right of the joystick). The chip's text becomes a span
+// the radio's onDisplay callback owns; the button re-enables pointer
+// events so it stays clickable inside the pointer-events: none HUD
+// layer.
+(function mountRadioButton() {
+  const chip = document.getElementById('radio');
+  if (!chip) return;
+  const label = document.createElement('span');
+  label.id = 'radiotext';
+  label.textContent = chip.textContent;
+  chip.textContent = '';
+  const btn = document.createElement('button');
+  btn.id = 'radioBtn';
+  btn.type = 'button';
+  btn.textContent = '\u25b8 R';
+  btn.title = 'Next station (R)';
+  btn.style.cssText = 'pointer-events:auto;cursor:pointer;margin-left:8px;background:transparent;border:1px solid rgba(255,255,255,.55);border-radius:4px;color:#ffe9a8;font:inherit;font-size:12px;padding:1px 7px;';
+  btn.addEventListener('click', nextStation);
+  chip.appendChild(label);
+  chip.appendChild(btn);
+})();
 const mapCtx = $('map').getContext('2d');
 function updateHUD() {
+  // Round 6: the radio ducks while any full-screen overlay is up
+  // (title/briefing, pause, ending) or the sound is muted.
+  if (Radio) Radio.setDucked(state.muted || overlayOpen());
   $('healthbar').style.width = clamp(state.health, 0, 100) + '%';
   $('cash').textContent = state.cash.toLocaleString();
   let stars = '';
@@ -1323,6 +1363,7 @@ function startGame() {
   state.started = true;
   $('start').style.display = 'none';
   Sound.init();
+  initRadio();
   const saved = loadGame();
   if (saved && SHOT === '') {
     if (saved.missionIndex > 0 || saved.biz) {
@@ -1352,6 +1393,9 @@ function startGame() {
       }
     }
   }
+  // Round 6: the saved station comes back with the save — a v4 save
+  // without radioStation (or no save at all) keeps the default.
+  if (Radio && saved && Number.isInteger(saved.radioStation)) Radio.setStation(saved.radioStation);
   const m = currentMission();
   if (m) { toast(m.name + ': ' + m.intro); setStepWanted(); }
   // The starter car is the first ordinary parked car — never a

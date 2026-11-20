@@ -233,6 +233,16 @@ export const BIZ_DEFENSE = {
   ],
 };
 
+// ------------------------------------------------------------------
+// SOLARA BAY RADIO (Round 6) — three procedural stations, no audio
+// files at all. VICE FM is the default (index 0); the choice is saved
+// with the game and restored on load. RADIO_GAIN is the radio bus
+// level into the master bus — ducking rides this gain, never the
+// master, so effects and engine hum keep their level.
+// ------------------------------------------------------------------
+export const RADIO_DEFAULT_STATION = 0;
+export const RADIO_GAIN = 0.5;
+
 export function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 export function lerp(a, b, t) { return a + (b - a) * t; }
 export function damp(a, b, lambda, dt) { return lerp(a, b, 1 - Math.exp(-lambda * dt)); }

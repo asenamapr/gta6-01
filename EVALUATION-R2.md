@@ -1,75 +1,154 @@
-# EVALUATION — gta6-01 Round 2 intake rejection
+# EVALUATION — gta6-01 intake rejections and fixes (rounds 2–6)
 
-Date: 2026-11-19 ~18:20 WIB. Submission 01a1f1e8-24df-73bc-91af-e045f69ecd18 (commit a2db9a50).
-Stage at submit (~10:45 WIB): "submitted", all intake checks pass/skip.
-Stage at re-check (~18:20 WIB): **"rejected"** — outcome null. Retry allowed until 2026-11-24T15:00:00Z; unchanged resubmit will fail.
+A running record of what the make.fun server rejected at intake,
+why it happened, and what changed in response. The game itself has
+never been judged — every rejection below happened before scoring.
+Retry is allowed until 2026-11-24T15:00:00Z.
 
-## What failed
+## Round 2 — rejected on transcripts_witnessed (2026-11-19)
 
-Exactly ONE check failed: `transcripts_witnessed` (422).
+Submission 01a1f1e8. One check failed: `transcripts_witnessed`
+(422). README.md was already sitting in the repo in its final form
+when the recording began, and the recorded agent wrote no line of
+it. The other 28 checks passed, including thinking_reproduces at
+36.3% authored. The lesson that stuck: the rule is not "the
+sessions must be live", it is "every counted file in the snapshot
+must be authored by the recorded agent during the recording". The
+local pre-submit check (4 pass / 0 fail) never caught it, and a
+local green check is not proof of an intake pass. Contributing
+factor: the kit was level 21 while the site was at level 26.
 
-> "1 counted file of the snapshot was in the repository with its final content when the recording began, and the recorded agent wrote no line of it: README.md."
+## Round 3 — recording unsubmittable (2026-11-19)
 
-All 28 other checks passed (quota, form, signature, repo, license, security audit, transcripts present/recorded/wellformed/in-window/committed, thinking_reproduces 36.3% authored ≥30%, thinking_revised pass, run record pass).
+The code was built and pushed (mission 6, the helicopter, Neon Row)
+and the recording sealed — but the submit was refused locally. The
+sealed recording held a scheduler-spawned cron worker session that
+opened as a hand-off with no parent chain back to a user prompt,
+because the build had read a file that worker wrote. The kit's
+parent-chain rule demands a chain for every session in the
+recording, and no flag fixes it. Lesson: a recording is
+contaminated when any scheduler-spawned session writes a file the
+build reads during the window. From round 4 on, the builder reads
+only the repo, the kit, the skill, and the pre-written brief — never
+memory, sweep files, or other builds.
 
-## Root cause
+## Round 4 — rejected on thinking_reproduces (2026-11-19)
 
-The R2 recording (01a1f1c5, 218/219 records witnessed) was a genuine LIVE recording — but it started AFTER README.md already sat in the repo in its final form. The rule is not "sessions must be live"; it is "**every counted file in the snapshot must be authored by the recorded agent DURING the recording**". README.md was written before the recording began, so the server counted it as unwitnessed.
+Submission 01a1f3d3. Two checks failed: `thinking_reproduces` and
+`transcripts_witnessed`. thinking_reproduces: the agent's own
+writing accounted for 366 of 2,399 counted lines (15.2%), under the
+30% required. Root cause: the builder read the existing game and
+rewrote it, so most lines counted as read, not authored — "rewrite
+every counted file in-session" is not enough, because a line counts
+as authored only if the agent's own write first carried it. The fix
+for round 5 was to author genuinely new content (new systems, not a
+re-skin) and to estimate the authored share before submitting, with
+a ~35% floor. Second lesson: owner-view "submitted + intake pass"
+at submit time is not intake passed — the transcript checks land
+hours later in the status JSON.
 
-## Why this is a REPEAT failure (same check as R1)
+## Round 5 — genuine rebuild, then rejected (2026-11-19)
 
-- R1 (01a1f1a7) failed the same check `transcripts_witnessed`: the dusk-pass session was backfilled, not streamed live.
-- R2 fixed the session-streaming part (live recording) but NOT the file-authorship part. The fix addressed the symptom (backfilled session), not the rule (every counted file written live).
-- The local pre-submit check (4 pass / 0 fail) did NOT catch it — it does not run the server's transcripts_witnessed logic. A local green check is not proof of intake pass.
-- Contributing factor: the kit was level 21 while the site is at level 26. Since level 22 the kit refuses run records the site rejects; R2 was uploaded through a stale kit.
+Builder commit 9924c6e, fresh level-27 kit, fresh recording: a new
+business.js (393 lines) and missions2.js (297 lines), the Port
+Solara docks district, main.js +401, a README rewrite, .gitignore
++3 — +1,616/−117 across 17 files, an authored-share estimate of
+about 40%. Screenshots regenerated in-session and sha256-verified.
+Submitted 2026-11-19 ~21:22 WIB as 01a1f42f.
 
-## What was NOT wrong
+## Addendum — Round 5 REJECTED on transcripts_witnessed
 
-- The game itself (SOLARA BAY) was never judged — rejection happened at intake, before scoring. No score, no rank, no judge feedback exists for R2.
-- No quota/reputation problem, no repo/license/security problem, no transcript forgery (nothing was patched or backfilled in R2).
+- **Submission 01a1f42f, stage rejected.** thinking_reproduces
+  PASSED this time: authored coverage 31.19% (1,122 of 3,597 lines).
+  Exactly one check failed: `transcripts_witnessed`.
+- **Exactly 2 counted files failed it: EVALUATION-R2.md and
+  SUBMISSION.md.** Their final content was written outside the
+  round-5 recording. The other 17 text files in the snapshot were
+  witnessed.
+- **Root cause.** The snapshot is the remote GitHub tree at the
+  commit, and those two files sat on remote in their round-4 form,
+  unwitnessed. The round-5 record sections were written in a session
+  whose working tree never reached the remote: the local clone and
+  origin had diverged after round 4 (two parallel round-5 rebuild
+  commits with identical trees, plus a screenshots commit), the
+  record commit sat on the local branch only, and the remote tree
+  the server snapshotted still held the round-4 versions of both
+  files. The coordinator's in-recording writing did not matter,
+  because the bytes never landed on remote.
+- **Fix in round 6.** This session rewrites both files live, on a
+  base that is merged with origin/main so the round-6 commit is a
+  descendant of the remote tip. The rewritten EVALUATION-R2.md is
+  pushed to remote. SUBMISSION.md is DELETED from remote — it holds
+  claim codes and must never be pushed — so it is no longer a
+  counted file at all. The local copy stays on disk as the record,
+  kept out of the git index.
 
-## Root-cause fix (Round 3, already running)
+## Re-record — the first round-6 recording could not be sealed
 
-1. Fresh kit level 26 — file download + hash check only, never a blind `curl | tar` pipe.
-2. Fresh recording started BEFORE any file exists in final form; work in a fresh agent session begun AFTER the recording started.
-3. The agent must write or edit EVERY counted file during the recording — including README.md (rewrite it in-session so the agent authors lines of it).
-4. Genuine improvement over R2 (not a re-skin): denser city / more missions / polish.
-5. Pre-submit check 0 fail, submit, verify owner-view stage = submitted with intake pass.
-6. Check `makefun status` for the reputation quota FIRST.
+The first round-6 attempt built the radio and rewrote both record
+files (local commit 859d06f), but its recording — 01a1f6ca-7ae0 —
+could not be sealed: the record process was stopped the wrong way
+and its state is gone. None of that session's writing counts as
+witnessed, so the round-6 files are re-authored here, under a fresh
+recording, in this session: radio.js is deleted and written anew
+from the spec, the main.js / config.js wiring is removed and
+re-added by this session's own edits, EVALUATION-R2.md is rewritten
+in full below in fresh prose, and SUBMISSION.md's Round 6 section
+is updated in this session. The 859d06f commit stays in local
+history as the record of the lost attempt; this session's commit
+supersedes it with the same message, re-authored.
 
-## Addendum — R3 recording unsubmittable (2026-11-19 ~19:05 WIB)
+## Round 6 — genuine fix (2026-11-20)
 
-R3's code was fully built and pushed (commit b7315cb + screenshots 3c7b918; mission 6, helicopter, Neon Row; fresh level-26 kit; recording 01a1f38e sealed 11:44:22Z; pre-submit check 4/0). But the SUBMIT was refused locally four times — the run record could not be built:
+One small genuine new system, written fresh in this session:
+Solara Bay Radio (game/src/radio.js, ~200 lines, no audio files).
+Three procedural WebAudio stations — VICE FM (synthwave arpeggio
+over Am–F–C–G), NEON NIGHTS (slow pads), HARBOR TALK (talk-radio
+murmur from filtered noise plus sparse station-ID blips) — switched
+with the R key or a HUD button inside the existing radio chip, with
+the current station and track title shown in the HUD. The track
+rolls every 8 bars. The choice is saved with the game and restored
+on load; the radio ducks while any full-screen overlay is open
+(title/briefing, pause, ending) or sound is muted. Wiring is
+minimal: radio init + save/load + R key + HUD button in main.js,
+station defaults in config.js. No visuals, screenshots, shots.json,
+README, LICENSE, vendor files, serve.ts, main.ts, .gitignore, or
+.makefun/owner.json changed; the only visual delta is the small
+station-switch button inside the existing radio chip.
 
-> "no top-level session opens with its prompt, and sessions/muse-app/4f475cca-...jsonl opens as a hand-off... the upload must carry its parent chats... but no chain it carries reaches that one: sessions/muse-app/4f475cca-...jsonl carries none"
+Verified live in this session: `node --check` clean on radio.js,
+main.js, and config.js; a Node smoke test of the radio against a
+fake AudioContext (19/19 passed — station switching, wrap-around,
+track roll after 8 bars, duck/unduck gain targets, stop clears
+timers); headless Chrome serving the game (17/17 checks passed) — page load with no exceptions, console
+errors, or failed requests, R-key and HUD-button switching, toast
+announcement, the station recorded in the save file, and the saved
+station restored after a reload; shot mode loads clean with no
+radio created. The packager (`MAKEFUN_OUTPUT_DIR=out node main.ts`)
+packs: manifest ok, 4 screenshots, radio.js shipped in
+out/game/src/. Note: the dossier text is capped at 163,840 bytes,
+so with ~188,000 bytes of game source the dossier leaves out
+missions2.js and radio.js from its text — the game files themselves
+ship whole, and the radio wiring is visible in main.js, which is in
+the dossier. The cap already cut the R5 dossier too.
 
-Root cause: the sealed R3 recording contains session 4f475cca — the makefun-new-comp-watch CRON worker, active during the R3 window (18:24 WIB) — which wrote a file the R3 build read (daily memory log / sweep file), pulling the scheduler-spawned session into the recording. It opens as a hand-off with NO parent chain to a user prompt (its parent is the scheduler), and the level-26 kit's parent-chain rule demands one. Fixes tried and refused: --parent-session (61bcd779 accepted as a file but the kit still demands 4f475cca's chain; 74b63da2 refused as "one of the sessions sent"), --no-family (transcript-mode only, refused with --recording), --no-recording-check (no effect), --bundle of only the builder session (submit forbids --bundle beside --recording; --bundle alone would fail transcripts_witnessed like R1, no recording link). The R2 recording (01a1f1c5) had 17 sealed sessions and submitted fine — none was scheduler-spawned.
+## Lessons folded forward
 
-Lesson: a recording is contaminated when ANY scheduler-spawned session writes a file the build reads during the window. R4 fix: fresh recording + builder that reads ONLY the repo, the kit, the skill, and the pre-written brief — never memory, the sweep file, or other builds. Coordinator must write the brief BEFORE the recording starts. (R4 coordinator spawned 2026-11-19 ~19:05 WIB.)
-
-## Lesson to fold into the makefun skill
-
-- `transcripts_witnessed` = every counted snapshot file must be authored live during the recording. Starting the recording after files are already final fails it, even if every session is live.
-- Local pre-submit green ≠ intake pass. The only proof is the owner-view status after submit.
-- When a fix targets one half of a failed check (live sessions), re-read the check's exact wording — the other half (file authorship) was the actual tripwire.
-- Keep the kit current: a stale kit (level 21 vs site 26) uploads run records the site may reject.
-
-## Addendum — Round 4 genuine rebuild (2026-11-19 ~19:10 WIB)
-
-R3's code was done and pushed (b7315cb + screenshots 3c7b918) but its
-recording 01a1f38e is UNSUBMITTABLE: the sealed recording contains a
-scheduler-spawned cron worker session (makefun-new-comp-watch run)
-that opened as a hand-off with no parent chain to a user prompt, and
-the level-26 kit refuses to build the run record for it. No flag
-fixes it. R4 is therefore a fresh recording + genuine rebuild, with a
-read discipline that caused the contamination in the first place: the
-builder reads ONLY the repo, the kit dir, the makefun skill, and the
-pre-written brief — never memory, sweep files, or other builds.
-
-Genuine improvement in R4 (not a re-skin): Night Shift free-roam.
-After mission 6 the city stays in full night and a courier job system
-runs — pickup markers across ten named spots, per-job timers and
-payouts in the in-game economy, chaining (finish one, next spawns),
-a job HUD (timer + payout + streak), and an accumulating night score.
-Missing a timer forfeits that job's payout and resets the streak, but
-the shift continues. The `end` screenshot is restaged to show it.
+- `transcripts_witnessed` = every counted snapshot file must be
+  authored live during the recording AND present on remote at the
+  snapshotted commit. A local-only commit does not count.
+- Check that the local branch is a descendant of origin/main before
+  building, and push the record files — a diverged local clone is
+  how round 5 lost two files.
+- SUBMISSION.md (claim codes) must never be in the remote tree.
+- A recording stopped the wrong way is unsealable and its state is
+  lost — when that happens, re-author everything under a fresh
+  recording; the lost session's files do not count.
+- Local pre-submit green ≠ intake pass. The only proof is the
+  transcript checks appearing with a pass in the status JSON, hours
+  after submit. Never report intake passed before that.
+- Keep the kit current: a stale kit uploads run records the site
+  may reject.
+- Estimate the authored share before submitting and do not submit
+  below ~35% estimated; genuinely new content is the only thing
+  that raises it.
